@@ -1,0 +1,364 @@
+/**
+ * FunctionCard Styles
+ * 
+ * Styles for the spatial function demo cards.
+ */
+
+.function-card {
+  margin: 16px;
+  overflow: hidden;
+}
+
+.function-card ion-card-header {
+  padding-bottom: 8px;
+}
+
+/* Function name */
+.function-name {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--ion-color-primary);
+}
+
+/* Function signature */
+.function-signature {
+  display: block;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  font-size: 0.85rem;
+  color: var(--ion-color-medium);
+  background: var(--ion-color-light);
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-top: 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+/* Description */
+.function-description {
+  margin: 0 0 12px 0;
+  line-height: 1.5;
+  color: var(--ion-text-color);
+}
+
+/* Return type badge */
+.return-type {
+  margin-bottom: 16px;
+}
+
+.return-type ion-badge {
+  font-size: 0.75rem;
+  padding: 4px 8px;
+}
+
+/* Parameters section */
+.parameters-section {
+  margin-bottom: 20px;
+}
+
+.parameters-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ion-color-medium-shade);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.parameters-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.parameter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--ion-color-light);
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.param-name {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  font-weight: 600;
+  color: var(--ion-color-primary);
+}
+
+.param-type {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  color: var(--ion-color-secondary);
+  background: var(--ion-color-secondary-tint);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.param-desc {
+  flex: 1;
+  color: var(--ion-color-medium-shade);
+  min-width: 100%;
+  margin-top: 4px;
+}
+
+.parameter ion-chip {
+  margin: 0;
+  height: 20px;
+  font-size: 0.7rem;
+}
+
+/* Examples section */
+.examples-section {
+  margin-bottom: 16px;
+}
+
+.examples-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ion-color-medium-shade);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.examples-section ion-accordion-group {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.examples-section ion-item {
+  --background: var(--ion-color-light);
+  --padding-start: 12px;
+}
+
+.examples-section ion-label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.examples-section ion-label ion-chip {
+  margin: 0;
+  height: 22px;
+  font-size: 0.7rem;
+}
+
+.accordion-icon {
+  transition: transform 0.2s ease;
+}
+
+ion-accordion[expanded] .accordion-icon {
+  transform: rotate(180deg);
+}
+
+/* Example content */
+.example-content {
+  background: var(--ion-background-color);
+}
+
+/* SQL block */
+.sql-block {
+  margin-bottom: 12px;
+}
+
+.sql-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.sql-header span {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ion-color-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sql-header ion-button {
+  --padding-start: 8px;
+  --padding-end: 8px;
+  height: 28px;
+}
+
+.sql-code {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  font-size: 0.85rem;
+  background: var(--ion-color-dark);
+  color: #e6e6e6;
+  padding: 12px;
+  border-radius: 8px;
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+/* Action buttons */
+.example-actions {
+  margin-bottom: 12px;
+}
+
+.example-actions ion-button {
+  --border-radius: 8px;
+}
+
+/* Result block */
+.result-block {
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.result-block.success {
+  border: 1px solid var(--ion-color-success-shade);
+}
+
+.result-block.error {
+  border: 1px solid var(--ion-color-danger-shade);
+}
+
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.result-block.success .result-header {
+  background: var(--ion-color-success-tint);
+  color: var(--ion-color-success-shade);
+}
+
+.result-block.error .result-header {
+  background: var(--ion-color-danger-tint);
+  color: var(--ion-color-danger-shade);
+}
+
+.result-header ion-button {
+  --color: var(--ion-color-success-shade);
+  height: 26px;
+  font-size: 0.75rem;
+}
+
+.result-code {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  font-size: 0.85rem;
+  padding: 12px;
+  margin: 0;
+  background: var(--ion-background-color);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.4;
+  max-height: 200px;
+}
+
+.result-meta {
+  padding: 6px 12px;
+  background: var(--ion-color-light);
+  font-size: 0.75rem;
+}
+
+/* Expected hint */
+.expected-hint {
+  font-size: 0.85rem;
+  padding: 8px 12px;
+  background: var(--ion-color-warning-tint);
+  border-radius: 6px;
+  margin: 0;
+}
+
+/* Notes section */
+.notes-section {
+  margin-bottom: 16px;
+}
+
+.notes-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ion-color-medium-shade);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.notes-section ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.notes-section li {
+  font-size: 0.9rem;
+  color: var(--ion-color-medium-shade);
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+/* Documentation link */
+.docs-link {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ion-border-color, rgba(0, 0, 0, 0.1));
+}
+
+.docs-link a {
+  color: var(--ion-color-primary);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.docs-link a:hover {
+  text-decoration: underline;
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .function-signature {
+    background: var(--ion-color-dark);
+    color: var(--ion-color-light);
+  }
+  
+  .parameter {
+    background: var(--ion-color-dark);
+  }
+  
+  .sql-code {
+    background: #1e1e1e;
+    color: #d4d4d4;
+  }
+  
+  .result-code {
+    background: var(--ion-color-dark);
+    color: var(--ion-color-light);
+  }
+  
+  .expected-hint {
+    background: rgba(var(--ion-color-warning-rgb), 0.2);
+  }
+}
+
+/* Responsive adjustments */
+@media (min-width: 768px) {
+  .function-card {
+    margin: 16px auto;
+    max-width: 700px;
+  }
+  
+  .param-desc {
+    min-width: auto;
+    margin-top: 0;
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "appId": "com.bangonkali.duckdb.demo",
+  "appName": "DuckDB Demo",
+  "webDir": "dist",
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": false
+    }
+  }
+}

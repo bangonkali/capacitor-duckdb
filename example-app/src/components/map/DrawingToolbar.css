@@ -1,0 +1,217 @@
+/**
+ * Drawing Toolbar Styles
+ * Touch-friendly with large targets and visual feedback
+ */
+
+.snap-indicator {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(52, 152, 219, 0.9);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 1001;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  animation: snapPulse 1s ease-in-out infinite;
+}
+
+@keyframes snapPulse {
+  0%, 100% {
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    transform: translateX(-50%) scale(1.05);
+  }
+}
+
+.drawing-status {
+  position: fixed;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 1001;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 8px 16px;
+  border-radius: 25px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+.drawing-status ion-badge {
+  font-size: 12px;
+  padding: 6px 12px;
+}
+
+.drawing-status ion-fab-button {
+  --size: 36px;
+  margin: 0 2px;
+}
+
+/* Make FAB buttons more touch-friendly */
+ion-fab-button {
+  --size: 48px;
+  min-width: 48px;
+  min-height: 48px;
+}
+
+ion-fab-button[size="small"] {
+  --size: 40px;
+  min-width: 40px;
+  min-height: 40px;
+}
+
+/* Tooltip for FAB buttons */
+ion-fab-button[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  right: 56px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+ion-fab-button[data-tooltip]:hover::after {
+  opacity: 1;
+}
+
+/* Active mode indicator */
+ion-fab-button[color="success"],
+ion-fab-button[color="warning"],
+ion-fab-button[color="danger"] {
+  --box-shadow: 0 0 0 4px rgba(var(--ion-color-base-rgb), 0.3);
+}
+
+/* Layer toggle panel */
+.layer-panel {
+  position: fixed;
+  bottom: 180px;
+  left: 16px;
+  background: var(--ion-background-color, white);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 200px;
+}
+
+.layer-panel h4 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ion-text-color);
+}
+
+.layer-panel ion-item {
+  --padding-start: 0;
+  --inner-padding-end: 0;
+}
+
+/* Map controls */
+.map-controls {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 1000;
+}
+
+.map-controls ion-fab-button {
+  --background: var(--ion-background-color, white);
+  --color: var(--ion-text-color);
+  --box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* Geometry type icons in the toolbar */
+.drawing-toolbar-icon {
+  font-size: 20px;
+}
+
+/* Crosshair cursor when drawing */
+.drawing-cursor {
+  cursor: crosshair;
+}
+
+/* Highlight snappable vertices */
+.snap-vertex {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border: 3px solid #3498db;
+  border-radius: 50%;
+  background: rgba(52, 152, 219, 0.2);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: snapVertexPulse 1s ease-in-out infinite;
+}
+
+@keyframes snapVertexPulse {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 0.7;
+  }
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  ion-fab-button {
+    --size: 52px;
+    min-width: 52px;
+    min-height: 52px;
+  }
+  
+  ion-fab-button[size="small"] {
+    --size: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  .drawing-status {
+    bottom: 140px;
+    padding: 6px 12px;
+  }
+  
+  .layer-panel {
+    left: 8px;
+    right: 8px;
+    bottom: 200px;
+    min-width: auto;
+  }
+  
+  ion-fab-button[data-tooltip]::after {
+    display: none;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .drawing-status {
+    background: rgba(30, 30, 30, 0.95);
+  }
+  
+  .snap-indicator {
+    background: rgba(52, 152, 219, 0.95);
+  }
+}

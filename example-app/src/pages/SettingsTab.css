@@ -1,0 +1,45 @@
+/**
+ * SettingsTab Styles
+ */
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+}
+
+.unsaved-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--ion-color-warning);
+  color: var(--ion-color-warning-contrast);
+}
+
+.unsaved-banner ion-icon {
+  font-size: 20px;
+}
+
+.unsaved-banner span {
+  flex: 1;
+}
+
+.limit-input {
+  max-width: 100px;
+  text-align: right;
+}
+
+ion-card ion-card-title ion-icon {
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+ion-card ion-note {
+  display: block;
+  padding: 0 0 8px 0;
+  font-size: 14px;
+}

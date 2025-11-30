@@ -1,0 +1,247 @@
+/* Ionic Variables and Theming */
+:root {
+  /* Primary - DuckDB Yellow */
+  --ion-color-primary: #FFC107;
+  --ion-color-primary-rgb: 255, 193, 7;
+  --ion-color-primary-contrast: #000000;
+  --ion-color-primary-contrast-rgb: 0, 0, 0;
+  --ion-color-primary-shade: #e0aa06;
+  --ion-color-primary-tint: #ffc720;
+
+  /* Secondary - Dark Blue */
+  --ion-color-secondary: #1a237e;
+  --ion-color-secondary-rgb: 26, 35, 126;
+  --ion-color-secondary-contrast: #ffffff;
+  --ion-color-secondary-contrast-rgb: 255, 255, 255;
+  --ion-color-secondary-shade: #171f6f;
+  --ion-color-secondary-tint: #31398b;
+
+  /* Tertiary */
+  --ion-color-tertiary: #7c4dff;
+  --ion-color-tertiary-rgb: 124, 77, 255;
+  --ion-color-tertiary-contrast: #ffffff;
+  --ion-color-tertiary-contrast-rgb: 255, 255, 255;
+  --ion-color-tertiary-shade: #6d44e0;
+  --ion-color-tertiary-tint: #895fff;
+
+  /* Success */
+  --ion-color-success: #4caf50;
+  --ion-color-success-rgb: 76, 175, 80;
+  --ion-color-success-contrast: #ffffff;
+  --ion-color-success-contrast-rgb: 255, 255, 255;
+  --ion-color-success-shade: #43a046;
+  --ion-color-success-tint: #5eb762;
+
+  /* Warning */
+  --ion-color-warning: #ff9800;
+  --ion-color-warning-rgb: 255, 152, 0;
+  --ion-color-warning-contrast: #000000;
+  --ion-color-warning-contrast-rgb: 0, 0, 0;
+  --ion-color-warning-shade: #e08600;
+  --ion-color-warning-tint: #ffa21a;
+
+  /* Danger */
+  --ion-color-danger: #f44336;
+  --ion-color-danger-rgb: 244, 67, 54;
+  --ion-color-danger-contrast: #ffffff;
+  --ion-color-danger-contrast-rgb: 255, 255, 255;
+  --ion-color-danger-shade: #d73a2f;
+  --ion-color-danger-tint: #f5564a;
+
+  /* Dark */
+  --ion-color-dark: #212121;
+  --ion-color-dark-rgb: 33, 33, 33;
+  --ion-color-dark-contrast: #ffffff;
+  --ion-color-dark-contrast-rgb: 255, 255, 255;
+  --ion-color-dark-shade: #1d1d1d;
+  --ion-color-dark-tint: #373737;
+
+  /* Medium */
+  --ion-color-medium: #9e9e9e;
+  --ion-color-medium-rgb: 158, 158, 158;
+  --ion-color-medium-contrast: #000000;
+  --ion-color-medium-contrast-rgb: 0, 0, 0;
+  --ion-color-medium-shade: #8b8b8b;
+  --ion-color-medium-tint: #a8a8a8;
+
+  /* Light */
+  --ion-color-light: #fafafa;
+  --ion-color-light-rgb: 250, 250, 250;
+  --ion-color-light-contrast: #000000;
+  --ion-color-light-contrast-rgb: 0, 0, 0;
+  --ion-color-light-shade: #dcdcdc;
+  --ion-color-light-tint: #ffffff;
+}
+
+/* DuckDB brand styling */
+.duckdb-header {
+  --background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
+}
+
+.duckdb-logo {
+  font-size: 1.5rem;
+  margin-right: 8px;
+}
+
+/* Stats card styling */
+.stat-card {
+  --background: var(--ion-color-light);
+  margin: 8px;
+  border-radius: 12px;
+}
+
+.stat-card ion-card-header {
+  padding-bottom: 0;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: bold;
+  color: var(--ion-color-primary);
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: var(--ion-color-medium);
+}
+
+/* Query result table */
+.result-table {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.result-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.result-table th {
+  background: var(--ion-color-light);
+  padding: 12px 8px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid var(--ion-color-medium);
+  white-space: nowrap;
+}
+
+.result-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--ion-color-light-shade);
+}
+
+.result-table tr:hover {
+  background: var(--ion-color-light);
+}
+
+/* Loading overlay */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  color: white;
+}
+
+.loading-overlay .duckdb-icon {
+  font-size: 4rem;
+  margin-bottom: 24px;
+  animation: bounce 1s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.loading-overlay h2 {
+  margin-bottom: 16px;
+  font-size: 1.25rem;
+}
+
+.loading-overlay .progress-text {
+  margin-top: 12px;
+  font-size: 0.875rem;
+  color: var(--ion-color-medium);
+}
+
+/* Query time badge */
+.query-time {
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  background: var(--ion-color-success);
+  color: white;
+  border-radius: 12px;
+  margin-left: 8px;
+}
+
+/* Todo item styling */
+.todo-item {
+  --padding-start: 0;
+}
+
+.todo-item.completed ion-label {
+  text-decoration: line-through;
+  color: var(--ion-color-medium);
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--ion-color-medium);
+}
+
+.empty-state ion-icon {
+  font-size: 4rem;
+  margin-bottom: 16px;
+}
+
+/* SQL Editor */
+.sql-editor {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  font-size: 0.875rem;
+  --padding-start: 12px;
+  --padding-end: 12px;
+  background: var(--ion-color-light);
+  border-radius: 8px;
+  min-height: 100px;
+}
+
+/* Quick query buttons */
+.query-button {
+  --border-radius: 8px;
+  margin: 4px;
+  font-size: 0.75rem;
+}
+
+/* Dashboard grid */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  padding: 8px;
+}
+
+@media (min-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Version badge */
+.version-badge {
+  font-size: 0.625rem;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  margin-left: 8px;
+}

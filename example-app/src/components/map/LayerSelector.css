@@ -1,0 +1,155 @@
+/**
+ * LayerSelector Styles
+ */
+
+.layer-selector {
+  overflow-y: auto;
+  background: var(--ion-background-color);
+}
+
+.layer-selector-loading,
+.layer-selector-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  gap: 12px;
+}
+
+.layer-selector-empty ion-icon {
+  font-size: 48px;
+  color: var(--ion-color-medium);
+}
+
+.layer-selector-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--ion-background-color);
+  padding: 8px;
+  border-bottom: 1px solid var(--ion-border-color);
+}
+
+.layer-search {
+  --border-radius: 8px;
+  padding: 0;
+}
+
+.layer-stats {
+  display: flex;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.layer-stats ion-chip {
+  height: 24px;
+  font-size: 12px;
+}
+
+.layer-list {
+  padding: 0;
+}
+
+.layer-category {
+  margin-bottom: 0;
+}
+
+.category-header {
+  --padding-start: 12px;
+  --padding-end: 12px;
+  --inner-padding-end: 8px;
+  min-height: 48px;
+  transition: background-color 0.2s;
+}
+
+.category-header:hover {
+  --background: var(--ion-color-light);
+}
+
+.category-header h3 {
+  font-weight: 600;
+  font-size: 14px;
+  margin: 0;
+}
+
+.category-header p {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  margin: 2px 0 0 0;
+}
+
+.category-header ion-icon {
+  font-size: 20px;
+  margin-right: 8px;
+}
+
+.layer-item {
+  --padding-start: 24px;
+  --min-height: 44px;
+  --background: transparent;
+  transition: background-color 0.2s;
+}
+
+.layer-item:hover {
+  --background: var(--ion-color-light);
+}
+
+.layer-item.enabled {
+  --background: rgba(var(--ion-color-primary-rgb), 0.05);
+}
+
+.layer-item h3 {
+  font-size: 13px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.layer-item p {
+  font-size: 11px;
+  color: var(--ion-color-medium);
+  margin: 2px 0 0 0;
+}
+
+.layer-color-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  margin-right: 8px;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Compact mode adjustments */
+.layer-selector.compact .layer-item {
+  --min-height: 36px;
+}
+
+.layer-selector.compact .layer-item p {
+  display: none;
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  .layer-color-indicator {
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* Scrollbar styling */
+.layer-selector::-webkit-scrollbar {
+  width: 6px;
+}
+
+.layer-selector::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.layer-selector::-webkit-scrollbar-thumb {
+  background: var(--ion-color-medium);
+  border-radius: 3px;
+}
+
+.layer-selector::-webkit-scrollbar-thumb:hover {
+  background: var(--ion-color-medium-shade);
+}
