@@ -2,24 +2,17 @@
  * Spatial Demo Service
  * 
  * Manages DuckDB spatial extension verification, table creation,
- * and seeding with Natural Earth data for demos.
+ * and querying Natural Earth data from the pre-populated demo database.
  * 
- * When using the pre-populated demo database (demo.duckdb), data is already
- * seeded at build time and copied from assets on first launch.
+ * NOTE: All Natural Earth data is pre-populated in demo.duckdb at build time.
+ * The database is bundled with the app and copied from assets on first launch.
+ * No runtime data seeding from JSON files is required.
  */
 
 import type { FeatureCollection, Geometry } from 'geojson';
 
 import { duckdb, DEMO_DB } from './duckdb';
 import settingsService from './settingsService';
-import naturalEarth, { 
-  geometryToWkt, 
-  type CountryFeature,
-  type CityFeature,
-  type RiverFeature,
-  type LakeFeature,
-  type AirportFeature,
-} from '../data/naturalEarth';
 
 // Database name for spatial demo - use unified demo database
 export const SPATIAL_DB = DEMO_DB;
@@ -260,250 +253,56 @@ export async function createSpatialTables(): Promise<void> {
 }
 
 // ============================================================================
-// Data Seeding
+// Data Status Checking
 // ============================================================================
 
 /**
- * Check if data has already been seeded
+ * Check if data has already been seeded/loaded in the database.
+ * With pre-populated demo.duckdb, this should always return true.
  */
 export async function isDataSeeded(): Promise<boolean> {
   try {
-    const result = await duckdb.query<{ count: number }>(
+    // Check ne_countries first (legacy table from 110m data)
+    const legacyResult = await duckdb.query<{ count: number }>(
       SPATIAL_DB,
       `SELECT COUNT(*) as count FROM ne_countries;`
     );
-    return (result.values[0]?.count || 0) > 0;
+    if ((legacyResult.values[0]?.count || 0) > 0) {
+      return true;
+    }
+    
+    // Also check layer_registry for 10m comprehensive data
+    const registryResult = await duckdb.query<{ count: number }>(
+      SPATIAL_DB,
+      `SELECT COUNT(*) as count FROM layer_registry WHERE feature_count > 0;`
+    );
+    return (registryResult.values[0]?.count || 0) > 0;
   } catch {
     return false;
   }
 }
 
 /**
- * Seed countries data from Natural Earth
- */
-async function seedCountries(): Promise<number> {
-  const countries = naturalEarth.countries();
-  let count = 0;
-  
-  // Process in batches for better performance
-  const batchSize = 20;
-  const features = countries.features;
-  
-  for (let i = 0; i < features.length; i += batchSize) {
-    const batch = features.slice(i, i + batchSize);
-    
-    for (const feature of batch) {
-      try {
-        const props = feature.properties;
-        const wkt = geometryToWkt(feature.geometry);
-        
-        await duckdb.run(
-          SPATIAL_DB,
-          `INSERT INTO ne_countries (id, name, name_long, iso_a3, iso_a2, continent, subregion, pop_est, gdp_md, geometry)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, ST_GeomFromText($10::VARCHAR));`,
-          [
-            count + 1,
-            props.NAME || 'Unknown',
-            props.NAME_LONG || props.NAME || 'Unknown',
-            props.ISO_A3 || '',
-            props.ISO_A2 || '',
-            props.CONTINENT || '',
-            props.SUBREGION || '',
-            props.POP_EST || 0,
-            props.GDP_MD || 0,
-            wkt,
-          ]
-        );
-        count++;
-      } catch (error) {
-        console.warn(`Failed to insert country: ${(feature as CountryFeature).properties.NAME}`, error);
-      }
-    }
-  }
-  
-  return count;
-}
-
-/**
- * Seed cities data from Natural Earth
- */
-async function seedCities(): Promise<number> {
-  const cities = naturalEarth.cities();
-  let count = 0;
-  
-  const batchSize = 50;
-  const features = cities.features;
-  
-  for (let i = 0; i < features.length; i += batchSize) {
-    const batch = features.slice(i, i + batchSize);
-    
-    for (const feature of batch) {
-      try {
-        const props = feature.properties;
-        const coords = feature.geometry.coordinates as [number, number];
-        const wkt = `POINT(${coords[0]} ${coords[1]})`;
-        
-        await duckdb.run(
-          SPATIAL_DB,
-          `INSERT INTO ne_cities (id, name, country, admin1, latitude, longitude, population, rank, timezone, geometry)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, ST_GeomFromText($10::VARCHAR));`,
-          [
-            count + 1,
-            props.NAME || 'Unknown',
-            props.ADM0NAME || '',
-            props.ADM1NAME || '',
-            props.LATITUDE || coords[1],
-            props.LONGITUDE || coords[0],
-            props.POP_MAX || 0,
-            props.RANK_MAX || 0,
-            props.TIMEZONE || '',
-            wkt,
-          ]
-        );
-        count++;
-      } catch (error) {
-        console.warn(`Failed to insert city: ${(feature as CityFeature).properties.NAME}`, error);
-      }
-    }
-  }
-  
-  return count;
-}
-
-/**
- * Seed airports data from Natural Earth
- */
-async function seedAirports(): Promise<number> {
-  const airports = naturalEarth.airports();
-  let count = 0;
-  
-  const batchSize = 50;
-  const features = airports.features;
-  
-  for (let i = 0; i < features.length; i += batchSize) {
-    const batch = features.slice(i, i + batchSize);
-    
-    for (const feature of batch) {
-      try {
-        const props = feature.properties;
-        const coords = feature.geometry.coordinates as [number, number];
-        const wkt = `POINT(${coords[0]} ${coords[1]})`;
-        
-        await duckdb.run(
-          SPATIAL_DB,
-          `INSERT INTO ne_airports (id, name, abbrev, type, iata_code, gps_code, location, geometry)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, ST_GeomFromText($8::VARCHAR));`,
-          [
-            count + 1,
-            props.name || 'Unknown',
-            props.abbrev || '',
-            props.type || '',
-            props.iata_code || '',
-            props.gps_code || '',
-            props.location || '',
-            wkt,
-          ]
-        );
-        count++;
-      } catch (error) {
-        console.warn(`Failed to insert airport: ${(feature as AirportFeature).properties.name}`, error);
-      }
-    }
-  }
-  
-  return count;
-}
-
-/**
- * Seed rivers data from Natural Earth
- */
-async function seedRivers(): Promise<number> {
-  const rivers = naturalEarth.rivers();
-  let count = 0;
-  
-  for (const feature of rivers.features) {
-    try {
-      const props = feature.properties;
-      const wkt = geometryToWkt(feature.geometry);
-      
-      await duckdb.run(
-        SPATIAL_DB,
-        `INSERT INTO ne_rivers (id, name, scalerank, geometry)
-         VALUES ($1, $2, $3, ST_GeomFromText($4::VARCHAR));`,
-        [
-          count + 1,
-          props.name || 'Unknown River',
-          props.scalerank || 0,
-          wkt,
-        ]
-      );
-      count++;
-    } catch (error) {
-      console.warn(`Failed to insert river: ${(feature as RiverFeature).properties.name}`, error);
-    }
-  }
-  
-  return count;
-}
-
-/**
- * Seed lakes data from Natural Earth
- */
-async function seedLakes(): Promise<number> {
-  const lakes = naturalEarth.lakes();
-  let count = 0;
-  
-  for (const feature of lakes.features) {
-    try {
-      const props = feature.properties;
-      const wkt = geometryToWkt(feature.geometry);
-      
-      await duckdb.run(
-        SPATIAL_DB,
-        `INSERT INTO ne_lakes (id, name, scalerank, geometry)
-         VALUES ($1, $2, $3, ST_GeomFromText($4::VARCHAR));`,
-        [
-          count + 1,
-          props.name || 'Unknown Lake',
-          props.scalerank || 0,
-          wkt,
-        ]
-      );
-      count++;
-    } catch (error) {
-      console.warn(`Failed to insert lake: ${(feature as LakeFeature).properties.name}`, error);
-    }
-  }
-  
-  return count;
-}
-
-/**
- * Seed all Natural Earth data into DuckDB
+ * @deprecated Data seeding is no longer needed - demo.duckdb is pre-populated.
+ * This function is kept for API compatibility but does nothing.
  */
 export async function seedNaturalEarthData(
   onProgress?: (message: string, percent: number) => void
 ): Promise<{ countries: number; cities: number; airports: number; rivers: number; lakes: number }> {
   const progress = onProgress || (() => {});
   
-  progress('Seeding countries...', 0);
-  const countries = await seedCountries();
+  // Log deprecation warning
+  console.warn(
+    '[SpatialService] seedNaturalEarthData() is deprecated. ' +
+    'All Natural Earth data is now pre-populated in demo.duckdb. ' +
+    'No runtime seeding is required.'
+  );
   
-  progress('Seeding cities...', 20);
-  const cities = await seedCities();
+  progress('Data is pre-populated in demo.duckdb', 100);
   
-  progress('Seeding airports...', 50);
-  const airports = await seedAirports();
-  
-  progress('Seeding rivers...', 75);
-  const rivers = await seedRivers();
-  
-  progress('Seeding lakes...', 90);
-  const lakes = await seedLakes();
-  
-  progress('Complete!', 100);
-  
-  return { countries, cities, airports, rivers, lakes };
+  // Return zeros since we're not actually seeding anything
+  // The data counts will be retrieved via getSpatialStats() instead
+  return { countries: 0, cities: 0, airports: 0, rivers: 0, lakes: 0 };
 }
 
 // ============================================================================
@@ -673,7 +472,7 @@ export async function getAvailableLayers(): Promise<LayerInfo[]> {
       minZoom: row.min_zoom,
       maxZoom: row.max_zoom,
     }));
-  } catch (error) {
+  } catch {
     console.warn('[SpatialService] layer_registry not found, using legacy layers');
     // Return empty if registry doesn't exist (legacy database)
     return [];
@@ -759,7 +558,7 @@ export async function getDynamicLayerGeoJSON(
       .filter(row => row.geometry_geojson)
       .map(row => {
         const geometry = JSON.parse(String(row.geometry_geojson)) as Geometry;
-        const { geometry_geojson, geometry: _geom, ...properties } = row;
+        const { geometry_geojson: _geoJson, geometry: _geom, ...properties } = row;
         return {
           type: 'Feature' as const,
           id: row.id as number | string | undefined,
@@ -910,21 +709,14 @@ export async function initializeSpatialDemo(
     throw new Error('Spatial extension is not available. Please rebuild DuckDB with --spatial flag.');
   }
   
-  progress('Creating tables...', 15);
-  await createSpatialTables();
-  
-  progress('Checking if data is seeded...', 20);
+  progress('Verifying pre-populated data...', 20);
   const seeded = await isDataSeeded();
   
   if (!seeded) {
-    progress('Seeding Natural Earth data...', 25);
-    await seedNaturalEarthData((msg, pct) => {
-      // Map 0-100 to 25-95
-      progress(msg, 25 + (pct * 0.7));
-    });
+    console.warn('Warning: Database does not contain pre-populated data. Run prepare-demo-database.mjs to populate.');
   }
   
-  progress('Getting stats...', 98);
+  progress('Getting stats...', 80);
   const stats = await getSpatialStats();
   
   progress('Ready!', 100);

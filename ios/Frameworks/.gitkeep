@@ -1,0 +1,3 @@
+# Placeholder to keep directory in git
+# The actual DuckDB.xcframework is built by scripts/build-ios.sh
+# and is git-ignored due to its large size

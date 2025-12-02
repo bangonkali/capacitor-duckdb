@@ -1,0 +1,3 @@
+# Placeholder to keep directory in git
+# The actual duckdb.h header is copied by scripts/build-ios.sh
+# and is git-ignored
