@@ -46,6 +46,10 @@ async function downloadFile(url, destPath) {
 }
 
 async function main() {
+    if (process.env.SKIP_BINARY_DOWNLOAD === 'true') {
+        console.log('Skipping binary download as SKIP_BINARY_DOWNLOAD is set to true.');
+        return;
+    }
     console.log(`Downloading native binaries for version ${VERSION}...`);
 
     // Create directories if they don't exist

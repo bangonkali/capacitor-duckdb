@@ -101,8 +101,15 @@ workflows:
             #!/bin/bash
             set -e
             
+            echo "Syncing package.json version with git tag..."
+            if [[ -n "$BITRISE_GIT_TAG" ]]; then
+                # Strip 'v' prefix if present
+                VERSION_NUM="${BITRISE_GIT_TAG#v}"
+                npm version $VERSION_NUM --no-git-tag-version
+            fi
+
             echo "Installing NPM dependencies..."
-            npm install
+            SKIP_BINARY_DOWNLOAD=true npm install
             
             echo "Building TypeScript..."
             npm run build
