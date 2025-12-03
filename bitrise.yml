@@ -2,11 +2,9 @@
 format_version: '23'
 default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
 project_type: ios
-
 trigger_map:
 - tag: v*
   pipeline: build-publish
-
 workflows:
   build-ios-binaries:
     summary: Build iOS binaries
@@ -23,11 +21,11 @@ workflows:
             set -e
             echo "Installing Ninja and CMake..."
             brew install ninja cmake
-            
+
             echo "Installing vcpkg..."
             git clone https://github.com/Microsoft/vcpkg.git $HOME/vcpkg
             $HOME/vcpkg/bootstrap-vcpkg.sh
-            
+
             # Expose VCPKG_ROOT for subsequent steps
             envman add --key VCPKG_ROOT --value "$HOME/vcpkg"
     - script:
@@ -38,7 +36,7 @@ workflows:
             set -e
             # Ensure VCPKG_ROOT is set
             export VCPKG_ROOT="$HOME/vcpkg"
-            
+
             echo "Building iOS binaries with Spatial extension..."
             ./scripts/build-ios.sh --spatial
     - script:
@@ -52,7 +50,6 @@ workflows:
     - deploy-to-bitrise-io:
         inputs:
         - pipeline_intermediate_files: "$BITRISE_DEPLOY_DIR/DuckDB.xcframework.zip:IOS_FRAMEWORK_ZIP_PATH"
-
   build-android-binaries:
     summary: Build Android binaries
     description: Installs dependencies and builds DuckDB native libraries for Android.
@@ -68,11 +65,11 @@ workflows:
             set -e
             echo "Installing Ninja and CMake..."
             brew install ninja cmake
-            
+
             echo "Installing vcpkg..."
             git clone https://github.com/Microsoft/vcpkg.git $HOME/vcpkg
             $HOME/vcpkg/bootstrap-vcpkg.sh
-            
+
             # Expose VCPKG_ROOT for subsequent steps
             envman add --key VCPKG_ROOT --value "$HOME/vcpkg"
     - script:
@@ -83,7 +80,7 @@ workflows:
             set -e
             # Ensure VCPKG_ROOT is set
             export VCPKG_ROOT="$HOME/vcpkg"
-            
+
             echo "Building Android binaries with Spatial extension..."
             export DUCKDB_EXTENSIONS="icu;json;parquet;inet;tpch;tpcds;vss"
             ./scripts/build-android.sh --spatial
@@ -98,10 +95,14 @@ workflows:
     - deploy-to-bitrise-io:
         inputs:
         - pipeline_intermediate_files: "$BITRISE_DEPLOY_DIR/android-libs.zip:ANDROID_LIBS_ZIP_PATH"
-
+    meta:
+      bitrise.io:
+        stack: ubuntu-noble-24.04-bitrise-2025-android
+        machine_type_id: elite
   build-npm-package:
     summary: Package and Publish
-    description: Downloads artifacts, packs the NPM package, and publishes to NPM and GitHub Releases.
+    description: Downloads artifacts, packs the NPM package, and publishes to NPM
+      and GitHub Releases.
     steps:
     - git-clone:
         inputs:
@@ -113,12 +114,12 @@ workflows:
         - content: |
             #!/bin/bash
             set -e
-            
+
             echo "Restoring iOS binaries from $IOS_FRAMEWORK_ZIP_PATH..."
             # Ensure destination exists
             mkdir -p ios/Frameworks
             unzip -q "$IOS_FRAMEWORK_ZIP_PATH" -d ios/Frameworks
-            
+
             echo "Restoring Android binaries from $ANDROID_LIBS_ZIP_PATH..."
             # Ensure destination exists
             mkdir -p android/src/main/jniLibs
@@ -136,29 +137,29 @@ workflows:
         - content: |
             #!/bin/bash
             set -e
-            
+
             echo "Syncing package.json version with git tag..."
             if [[ -n "$BITRISE_GIT_TAG" ]]; then
                 # Strip 'v' prefix if present
                 VERSION_NUM="${BITRISE_GIT_TAG#v}"
                 npm version $VERSION_NUM --no-git-tag-version
             fi
-            
+
             echo "Installing NPM dependencies..."
             SKIP_BINARY_DOWNLOAD=true npm install
-            
+
             echo "Building TypeScript..."
             npm run build
-            
+
             echo "Packing NPM package..."
             npm pack
-            
+
             # Find the generated tarball
             PKG_FILE=$(ls *.tgz | head -n 1)
-            
+
             # Move the tarball to the deploy directory
             mv "$PKG_FILE" "$BITRISE_DEPLOY_DIR/"
-            
+
             # Expose the full path for the next step
             envman add --key RELEASE_ARCHIVE_PATH --value "$BITRISE_DEPLOY_DIR/$PKG_FILE"
     - script:
@@ -187,7 +188,10 @@ workflows:
             $RELEASE_ARCHIVE_PATH
             $IOS_FRAMEWORK_ZIP_PATH
             $ANDROID_LIBS_ZIP_PATH
-
+    meta:
+      bitrise.io:
+        stack: ubuntu-noble-24.04-bitrise-2025-android
+        machine_type_id: elite
 pipelines:
   build-publish:
     workflows:
@@ -197,7 +201,6 @@ pipelines:
         depends_on:
         - build-ios-binaries
         - build-android-binaries
-
 meta:
   bitrise.io:
     stack: osx-xcode-16.4.x
