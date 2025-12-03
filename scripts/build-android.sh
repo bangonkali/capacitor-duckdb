@@ -2,29 +2,40 @@
 # Build DuckDB native libraries for Android
 # Supports arm64-v8a and x86_64 ABIs
 #
-# For standard extensions (icu, json, parquet, etc.):
-#   DUCKDB_EXTENSIONS="icu;json;parquet" ./scripts/build-android.sh
+# This script builds a MONOLITHIC DuckDB library with ALL extensions statically linked:
+#   - spatial (GIS/geometry functions via GDAL, GEOS, PROJ)
+#   - vss (Vector Similarity Search with HNSW indexes)
+#   - icu (International Components for Unicode)
+#   - json (JSON parsing and generation)
+#   - parquet (Parquet file format support)
+#   - inet (IP address functions)
+#   - tpch (TPC-H benchmark queries)
+#   - tpcds (TPC-DS benchmark queries)
 #
-# For spatial extension (requires vcpkg):
-#   ./scripts/build-android.sh --spatial
+# Why monolithic? Mobile platforms (Android/iOS) discourage dynamic loading.
+# All functionality is available offline immediately after app install.
 #
-# Prerequisites for spatial:
-#   - vcpkg installed: git clone https://github.com/Microsoft/vcpkg.git && ./vcpkg/bootstrap-vcpkg.sh
-#   - First build takes 30-60 minutes (builds GDAL, GEOS, PROJ from source)
+# Prerequisites:
+#   - Android NDK (via Android Studio)
+#   - vcpkg: git clone https://github.com/Microsoft/vcpkg.git && ./vcpkg/bootstrap-vcpkg.sh
+#   - cmake, ninja, git
+#
+# Usage:
+#   ./scripts/build-android.sh              # Build native libraries
+#   ./scripts/build-android.sh --build-app  # Also build example app
 
 set -e
 
 # Configuration
 DUCKDB_VERSION="${DUCKDB_VERSION:-main}"
-DUCKDB_EXTENSIONS="${DUCKDB_EXTENSIONS:-icu;json;parquet;inet;tpch;tpcds;vss}"
+# All extensions - always included, statically linked
+DUCKDB_EXTENSIONS="icu;json;parquet;inet;tpch;tpcds"
 BUILD_APP=false
-BUILD_SPATIAL=true
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-BUILD_DIR="${PROJECT_ROOT}/build/duckdb"
 OUTPUT_DIR="${PROJECT_ROOT}/android/src/main"
 
-# vcpkg settings (for spatial extension)
+# vcpkg settings (required for spatial extension)
 VCPKG_ROOT="${VCPKG_ROOT:-$HOME/vcpkg}"
 # API level 28+ required for posix_spawn and getrandom used by GDAL
 ANDROID_API_LEVEL="${ANDROID_API_LEVEL:-28}"
@@ -52,13 +63,16 @@ log_step() {
     echo -e "${BLUE}[STEP]${NC} $1"
 }
 
-# Check for vcpkg (required for spatial extension)
+# Check for vcpkg (required)
 check_vcpkg() {
     if [ ! -f "$VCPKG_ROOT/vcpkg" ]; then
         log_error "vcpkg not found at $VCPKG_ROOT"
-        log_error "Please install vcpkg or set VCPKG_ROOT environment variable"
-        log_error "  git clone https://github.com/Microsoft/vcpkg.git"
-        log_error "  ./vcpkg/bootstrap-vcpkg.sh"
+        log_error "vcpkg is REQUIRED for building DuckDB with spatial extension"
+        log_error ""
+        log_error "Install vcpkg:"
+        log_error "  git clone https://github.com/Microsoft/vcpkg.git ~/vcpkg"
+        log_error "  ~/vcpkg/bootstrap-vcpkg.sh"
+        log_error "  export VCPKG_ROOT=\$HOME/vcpkg"
         exit 1
     fi
     log_info "Using vcpkg: $VCPKG_ROOT"
@@ -69,7 +83,6 @@ check_ndk() {
     if [ -z "$ANDROID_NDK" ]; then
         # Try to find NDK in common locations
         if [ -n "$ANDROID_HOME" ]; then
-            # Find the latest NDK version
             NDK_DIR="$ANDROID_HOME/ndk"
             if [ -d "$NDK_DIR" ]; then
                 ANDROID_NDK=$(ls -d "$NDK_DIR"/*/ 2>/dev/null | sort -V | tail -1)
@@ -112,35 +125,12 @@ check_tools() {
 
     if [ ${#missing_tools[@]} -ne 0 ]; then
         log_error "Missing required tools: ${missing_tools[*]}"
-        log_error "Please install them before running this script"
+        log_error "Please install them: brew install cmake ninja git"
         exit 1
     fi
 }
 
-# Clone or update DuckDB source
-get_duckdb_source() {
-    log_info "Getting DuckDB source (version: $DUCKDB_VERSION)..."
-    
-    mkdir -p "$BUILD_DIR"
-    
-    if [ -d "$BUILD_DIR/duckdb" ]; then
-        log_info "Updating existing DuckDB source..."
-        cd "$BUILD_DIR/duckdb"
-        git fetch origin
-        git checkout "$DUCKDB_VERSION"
-        if [ "$DUCKDB_VERSION" = "main" ]; then
-            git pull origin main
-        fi
-    else
-        log_info "Cloning DuckDB repository..."
-        git clone --depth 1 --branch "$DUCKDB_VERSION" https://github.com/duckdb/duckdb.git "$BUILD_DIR/duckdb" || \
-        git clone https://github.com/duckdb/duckdb.git "$BUILD_DIR/duckdb"
-        cd "$BUILD_DIR/duckdb"
-        git checkout "$DUCKDB_VERSION"
-    fi
-}
-
-# Clone or update duckdb-spatial source (for spatial extension)
+# Clone or update duckdb-spatial source
 get_spatial_source() {
     local spatial_dir="${PROJECT_ROOT}/build/spatial/duckdb-spatial"
     
@@ -155,7 +145,7 @@ get_spatial_source() {
         git clone --recurse-submodules https://github.com/duckdb/duckdb-spatial.git "$spatial_dir"
     fi
     
-    # We'll use the duckdb submodule from spatial for consistency
+    # Use the duckdb submodule from spatial for consistency
     cd "$spatial_dir"
     git submodule update --init --recursive
 }
@@ -179,7 +169,31 @@ get_vss_source() {
     fi
 }
 
-# Install vcpkg dependencies for Android (spatial extension)
+# Create custom VSS extension config for static linking
+# The default DuckDB config for VSS uses DONT_LINK which prevents static linking
+create_vss_extension_config() {
+    local config_dir="${PROJECT_ROOT}/build/vss"
+    local config_file="${config_dir}/vss_extension_config.cmake"
+    local vss_dir="${PROJECT_ROOT}/build/vss/duckdb-vss"
+    
+    log_info "Creating custom VSS extension config for static linking..."
+    
+    mkdir -p "$config_dir"
+    
+    cat > "$config_file" << EOF
+# Custom VSS extension config for static linking
+# This overrides the default config which has DONT_LINK
+
+duckdb_extension_load(vss
+    SOURCE_DIR ${vss_dir}
+    LOAD_TESTS
+)
+EOF
+    
+    log_info "VSS extension config created at: $config_file"
+}
+
+# Install vcpkg dependencies for Android
 install_vcpkg_deps() {
     local triplet=$1
     local spatial_dir="${PROJECT_ROOT}/build/spatial/duckdb-spatial"
@@ -197,19 +211,16 @@ install_vcpkg_deps() {
     fi
     
     log_step "Installing vcpkg dependencies for $triplet (host: $host_triplet)..."
-    log_info "This may take a while on first run (building GDAL, GEOS, PROJ, CURL from source)..."
-    log_info "Expected time: 30-60 minutes for first build"
+    log_info "This may take 30-60 minutes on first run (building GDAL, GEOS, PROJ from source)..."
     
     cd "$spatial_dir"
     
-    # Backup original vcpkg.json and create a modified one with curl enabled for Android
-    # The original excludes curl for android/ios/wasm, but we want it for network support
+    # Backup original vcpkg.json
     if [ ! -f "$spatial_dir/vcpkg.json.original" ]; then
-        log_info "Backing up original vcpkg.json..."
         cp "$spatial_dir/vcpkg.json" "$spatial_dir/vcpkg.json.original"
     fi
     
-    log_info "Creating modified vcpkg.json with curl enabled for Android..."
+    # Create modified vcpkg.json with curl enabled for Android
     cat > "$spatial_dir/vcpkg.json" << 'EOF'
 {
   "dependencies": [
@@ -262,12 +273,10 @@ EOF
     # Set environment for Android NDK
     export ANDROID_NDK_HOME="$ANDROID_NDK"
     
-    # Create custom triplet with correct API level (posix_spawn/getrandom require API 28+)
-    # vcpkg's default triplets use API 24, which is too low for GDAL
+    # Create custom triplets with correct API level
     local custom_triplets_dir="$spatial_dir/custom-triplets"
     mkdir -p "$custom_triplets_dir"
     
-    # Create custom arm64-android triplet
     cat > "$custom_triplets_dir/arm64-android.cmake" << EOF
 set(VCPKG_TARGET_ARCHITECTURE arm64)
 set(VCPKG_CRT_LINKAGE dynamic)
@@ -278,7 +287,6 @@ set(VCPKG_MAKE_BUILD_TRIPLET "--host=aarch64-linux-android")
 set(VCPKG_CMAKE_CONFIGURE_OPTIONS -DANDROID_ABI=arm64-v8a)
 EOF
 
-    # Create custom x64-android triplet
     cat > "$custom_triplets_dir/x64-android.cmake" << EOF
 set(VCPKG_TARGET_ARCHITECTURE x64)
 set(VCPKG_CRT_LINKAGE dynamic)
@@ -294,103 +302,39 @@ EOF
     # Check if we need to rebuild due to API level change
     local api_marker="$spatial_dir/vcpkg_installed/.api_level_$ANDROID_API_LEVEL"
     if [ -d "$spatial_dir/vcpkg_installed/$triplet" ] && [ ! -f "$api_marker" ]; then
-        log_warn "Removing old vcpkg installation (was built with different API level)..."
+        log_warn "Removing old vcpkg installation (different API level)..."
         rm -rf "$spatial_dir/vcpkg_installed"
     fi
     
-    # Install dependencies using manifest mode with custom triplets
+    # Install dependencies
     "$VCPKG_ROOT/vcpkg" install \
         --triplet="$triplet" \
         --host-triplet="$host_triplet" \
         --x-install-root="$spatial_dir/vcpkg_installed" \
         --overlay-triplets="$custom_triplets_dir"
     
-    # Mark the API level used
     touch "$api_marker"
-    
     log_info "vcpkg dependencies installed for $triplet"
 }
 
-# Build DuckDB for a specific ABI
+# Build DuckDB with all extensions for a specific ABI
 build_for_abi() {
-    local abi=$1
-    local platform_name="android_${abi}"
-    local build_path="$BUILD_DIR/duckdb/build/${platform_name}"
-    local vss_dir="${PROJECT_ROOT}/build/vss/duckdb-vss"
-    
-    log_step "Building DuckDB for $abi..."
-    
-    mkdir -p "$build_path"
-    cd "$build_path"
-    
-    local cmake_args=(
-        -G "Ninja"
-        -DEXTENSION_STATIC_BUILD=1
-        -DDUCKDB_EXTRA_LINK_FLAGS="-llog -Wl,-z,max-page-size=16384"
-        -DENABLE_EXTENSION_AUTOLOADING=1
-        -DENABLE_EXTENSION_AUTOINSTALL=0
-        -DCMAKE_VERBOSE_MAKEFILE=on
-        -DANDROID_PLATFORM=android-${ANDROID_API_LEVEL}
-        -DLOCAL_EXTENSION_REPO=""
-        -DOVERRIDE_GIT_DESCRIBE=""
-        -DDUCKDB_EXPLICIT_PLATFORM="${platform_name}"
-        -DBUILD_UNITTESTS=0
-        -DBUILD_SHELL=0
-        -DANDROID_ABI="${abi}"
-        -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK}/build/cmake/android.toolchain.cmake"
-        -DCMAKE_BUILD_TYPE=Release
-    )
-    
-    # Add extensions if specified
-    if [ -n "$DUCKDB_EXTENSIONS" ]; then
-        cmake_args+=(-DBUILD_EXTENSIONS="${DUCKDB_EXTENSIONS}")
-        # Add external extension directories (for VSS)
-        cmake_args+=(-DEXTERNAL_EXTENSION_DIRECTORIES="$vss_dir")
-        log_info "Building with extensions: $DUCKDB_EXTENSIONS"
-    fi
-    
-    cmake "${cmake_args[@]}" ../..
-    cmake --build . --config Release
-    
-    # Copy the built library
-    local output_abi_dir="${OUTPUT_DIR}/jniLibs/${abi}"
-    mkdir -p "$output_abi_dir"
-    
-    if [ -f "src/libduckdb.so" ]; then
-        cp "src/libduckdb.so" "$output_abi_dir/"
-        log_info "Copied libduckdb.so to $output_abi_dir"
-    else
-        log_error "libduckdb.so not found for $abi!"
-        exit 1
-    fi
-}
-
-# Build DuckDB with spatial extension for a specific ABI
-# 
-# Why we can't just use DUCKDB_EXTENSIONS="spatial":
-# 1. Spatial is an OUT-OF-TREE extension (separate repo: github.com/duckdb/duckdb-spatial)
-# 2. It requires vcpkg dependencies (GDAL, GEOS, PROJ) that must be cross-compiled for Android
-# 3. These aren't in DuckDB's repo and can't be auto-fetched like in-tree extensions
-#
-# This function uses duckdb_extension_load() mechanism to build DuckDB + spatial together
-build_spatial_for_abi() {
     local abi=$1
     local triplet=$2
     local platform_name="android_${abi}"
     local spatial_dir="${PROJECT_ROOT}/build/spatial/duckdb-spatial"
     local build_path="$spatial_dir/build/${platform_name}"
-    local vss_dir="${PROJECT_ROOT}/build/vss/duckdb-vss"
+    local vss_config="${PROJECT_ROOT}/build/vss/vss_extension_config.cmake"
     
-    log_step "Building DuckDB with spatial extension for $abi..."
+    log_step "Building DuckDB with all extensions for $abi..."
     
-    # Install vcpkg dependencies first (GDAL, GEOS, PROJ for Android)
+    # Install vcpkg dependencies (GDAL, GEOS, PROJ)
     install_vcpkg_deps "$triplet"
     
     cd "$spatial_dir"
     
     local vcpkg_installed="$spatial_dir/vcpkg_installed/$triplet"
     
-    # Verify vcpkg installation
     if [ ! -d "$vcpkg_installed" ]; then
         log_error "vcpkg installation not found at $vcpkg_installed"
         exit 1
@@ -410,24 +354,19 @@ build_spatial_for_abi() {
         host_triplet="x64-linux"
     fi
     
-    # Clean previous build for this platform
+    # Clean previous build
     rm -rf "$build_path"
     mkdir -p "$build_path"
     
-    # The key insight: DuckDB's CMake uses DUCKDB_EXTENSION_CONFIGS to load extensions
-    # The spatial extension's extension_config.cmake tells DuckDB how to build it
-    # We point CMake at duckdb/ submodule as source, with spatial's config
-    
     log_info "Running CMake configuration..."
     log_info "  Source: $spatial_dir/duckdb"
-    log_info "  Extension config: $spatial_dir/extension_config.cmake"
-    log_info "  vcpkg installed: $vcpkg_installed"
+    log_info "  Extension configs: spatial + vss"
+    log_info "  In-tree extensions: $DUCKDB_EXTENSIONS"
     
     local num_cores=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
     local custom_triplets_dir="$spatial_dir/custom-triplets"
     
-    # Use vcpkg toolchain with Android NDK chainloaded
-    # This allows vcpkg to find packages while using Android NDK for compilation
+    # Build with vcpkg toolchain + Android NDK
     cmake -G "Ninja" \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
@@ -440,7 +379,7 @@ build_spatial_for_abi() {
         -DANDROID_ABI="$abi" \
         -DANDROID_PLATFORM="android-$ANDROID_API_LEVEL" \
         -DEXTENSION_STATIC_BUILD=ON \
-        -DDUCKDB_EXTENSION_CONFIGS="$spatial_dir/extension_config.cmake" \
+        -DDUCKDB_EXTENSION_CONFIGS="$spatial_dir/extension_config.cmake;$vss_config" \
         -DSPATIAL_USE_NETWORK=ON \
         -DBUILD_SHELL=OFF \
         -DBUILD_UNITTESTS=OFF \
@@ -450,12 +389,11 @@ build_spatial_for_abi() {
         -DDUCKDB_EXPLICIT_PLATFORM="$platform_name" \
         -DLOCAL_EXTENSION_REPO="" \
         -DOVERRIDE_GIT_DESCRIBE="" \
-        ${DUCKDB_EXTENSIONS:+-DBUILD_EXTENSIONS="$DUCKDB_EXTENSIONS"} \
-        -DEXTERNAL_EXTENSION_DIRECTORIES="$vss_dir" \
+        -DBUILD_EXTENSIONS="$DUCKDB_EXTENSIONS" \
         -S "$spatial_dir/duckdb" \
         -B "$build_path"
     
-    log_info "Building DuckDB with spatial extension..."
+    log_info "Building DuckDB (this may take a while)..."
     cmake --build "$build_path" --config Release -- -j$num_cores
     
     # Copy the built library
@@ -466,128 +404,92 @@ build_spatial_for_abi() {
         cp "$build_path/src/libduckdb.so" "$output_abi_dir/"
         log_info "Copied libduckdb.so to $output_abi_dir"
     else
-        log_warn "libduckdb.so not found at expected location"
-        log_info "Searching for .so files..."
+        log_error "libduckdb.so not found!"
         find "$build_path" -name "*.so" -type f 2>/dev/null | head -10
+        exit 1
     fi
 }
 
 # Copy DuckDB headers
 copy_headers() {
-    log_info "Copying DuckDB headers..."
-    
+    local spatial_dir="${PROJECT_ROOT}/build/spatial/duckdb-spatial"
     local include_dir="${OUTPUT_DIR}/cpp/include"
+    
+    log_info "Copying DuckDB headers..."
     mkdir -p "$include_dir"
-    
-    # Copy the main C header
-    cp "$BUILD_DIR/duckdb/src/include/duckdb.h" "$include_dir/"
-    
+    cp "$spatial_dir/duckdb/src/include/duckdb.h" "$include_dir/"
     log_info "Headers copied to $include_dir"
 }
 
-# Build the plugin and example app
+# Build the example app
 build_example_app() {
     log_info "Building plugin and example app..."
     
-    # Build the TypeScript plugin
     cd "$PROJECT_ROOT"
     if [ -f "package.json" ]; then
-        log_info "Installing plugin dependencies..."
         npm install
-        log_info "Building TypeScript plugin..."
         npm run build
     fi
     
-    # Build the example app
     cd "$PROJECT_ROOT/example-app"
     if [ -f "package.json" ]; then
-        log_info "Installing example app dependencies..."
         npm install
-        log_info "Building example app..."
         npm run build
-        log_info "Syncing Capacitor..."
         npx cap sync android
     fi
     
-    # Build Android APK/Bundle
     cd "$PROJECT_ROOT/example-app/android"
     if [ -f "gradlew" ]; then
-        log_info "Building Android release bundle..."
         ./gradlew bundleRelease
-        log_info "Android build complete!"
-        log_info "Bundle location: $PROJECT_ROOT/example-app/android/app/build/outputs/bundle/release/"
-    else
-        log_error "gradlew not found in example-app/android"
-        exit 1
+        log_info "Build complete: $PROJECT_ROOT/example-app/android/app/build/outputs/bundle/release/"
     fi
 }
 
 # Main build process
 main() {
-    log_info "=== DuckDB Android Build Script ==="
-    log_info "Project root: $PROJECT_ROOT"
+    log_info "=== DuckDB Android Build Script (Monolithic) ==="
+    log_info ""
+    log_info "Building DuckDB with ALL extensions statically linked:"
+    log_info "  - spatial (GIS: ST_Point, ST_Distance, ST_Buffer, etc.)"
+    log_info "  - vss (Vector Search: HNSW indexes, vss_join, vss_match)"
+    log_info "  - icu (Unicode support)"
+    log_info "  - json (JSON functions)"
+    log_info "  - parquet (Parquet file format)"
+    log_info "  - inet (IP address functions)"
+    log_info "  - tpch, tpcds (Benchmark queries)"
+    log_info ""
     
     check_tools
     check_ndk
+    check_vcpkg
     
-    # Get VSS source if VSS is in extensions
-    if [[ "$DUCKDB_EXTENSIONS" == *"vss"* ]]; then
-        get_vss_source
-    fi
+    # Get extension sources
+    get_spatial_source
+    get_vss_source
+    create_vss_extension_config
     
-    if [ "$BUILD_SPATIAL" = true ]; then
-        # Spatial extension build (uses vcpkg + duckdb-spatial)
-        log_info ""
-        log_warn "⚠️  Building with SPATIAL extension requires significant time and disk space!"
-        log_warn "   - GDAL, GEOS, PROJ will be compiled from source via vcpkg"
-        log_warn "   - First build may take 30-60 minutes"
-        log_warn "   - Requires ~5-10GB disk space"
-        log_info ""
-        
-        check_vcpkg
-        get_spatial_source
-        
-        # Build for both ABIs using vcpkg Android triplets
-        build_spatial_for_abi "arm64-v8a" "arm64-android"
-        build_spatial_for_abi "x86_64" "x64-android"
-        
-        # Copy headers from duckdb-spatial's duckdb submodule
-        local spatial_dir="${PROJECT_ROOT}/build/spatial/duckdb-spatial"
-        local include_dir="${OUTPUT_DIR}/cpp/include"
-        mkdir -p "$include_dir"
-        cp "$spatial_dir/duckdb/src/include/duckdb.h" "$include_dir/"
-        log_info "Headers copied to $include_dir"
-    else
-        # Standard DuckDB build
-        get_duckdb_source
-        
-        # Build for both ABIs
-        build_for_abi "arm64-v8a"
-        build_for_abi "x86_64"
-        
-        # Copy headers
-        copy_headers
-    fi
+    log_warn "⚠️  First build takes 30-60 minutes (compiling GDAL, GEOS, PROJ)"
+    log_warn "   Subsequent builds are much faster (cached)"
+    log_info ""
     
-    log_info "=== Native build complete! ==="
-    log_info "Native libraries are in: ${OUTPUT_DIR}/jniLibs/"
-    log_info "Headers are in: ${OUTPUT_DIR}/cpp/include/"
+    # Build for both ABIs
+    build_for_abi "arm64-v8a" "arm64-android"
+    build_for_abi "x86_64" "x64-android"
     
-    if [ "$BUILD_SPATIAL" = true ]; then
-        log_info ""
-        log_info "Spatial extension included! Available functions:"
-        log_info "  - ST_Point, ST_LineString, ST_Polygon, etc."
-        log_info "  - ST_Intersects, ST_Contains, ST_Distance, ST_Buffer, etc."
-        log_info "  - ST_Transform (coordinate transformations)"
-        log_info "  - ST_Read (GeoJSON, Shapefile, GeoParquet, etc.)"
-    fi
+    # Copy headers
+    copy_headers
     
-    # Optionally build the example app
+    log_info ""
+    log_info "=== Build complete! ==="
+    log_info "Output: ${OUTPUT_DIR}/jniLibs/"
+    log_info ""
+    log_info "All extensions are statically linked and available offline."
+    
     if [ "$BUILD_APP" = true ]; then
         build_example_app
     else
         log_info ""
-        log_info "To also build the example app, run with --build-app flag"
+        log_info "To build the example app: ./scripts/build-android.sh --build-app"
     fi
 }
 
@@ -598,14 +500,6 @@ while [[ $# -gt 0 ]]; do
             DUCKDB_VERSION="$2"
             shift 2
             ;;
-        --extensions)
-            DUCKDB_EXTENSIONS="$2"
-            shift 2
-            ;;
-        --spatial)
-            BUILD_SPATIAL=true
-            shift
-            ;;
         --build-app)
             BUILD_APP=true
             shift
@@ -613,35 +507,25 @@ while [[ $# -gt 0 ]]; do
         --help)
             echo "Usage: $0 [options]"
             echo ""
+            echo "Builds a monolithic DuckDB library with ALL extensions statically linked."
+            echo ""
             echo "Options:"
-            echo "  --version VERSION    DuckDB version/branch to build (default: main)"
-            echo "  --extensions LIST    Semicolon-separated list of extensions (e.g., 'icu;json;parquet')"
-            echo "  --spatial            Build with spatial extension (GDAL, GEOS, PROJ via vcpkg)"
-            echo "  --build-app          Also build the plugin and example app after native libs"
-            echo "  --help               Show this help message"
+            echo "  --version VERSION    DuckDB version/branch (default: main)"
+            echo "  --build-app          Also build the example app"
+            echo "  --help               Show this help"
             echo ""
             echo "Environment variables:"
-            echo "  ANDROID_NDK         Path to Android NDK (auto-detected if not set)"
-            echo "  DUCKDB_VERSION      DuckDB version to build"
-            echo "  DUCKDB_EXTENSIONS   Extensions to include"
-            echo "  VCPKG_ROOT          Path to vcpkg (default: ~/vcpkg, required for --spatial)"
+            echo "  ANDROID_NDK          Path to Android NDK (auto-detected)"
+            echo "  VCPKG_ROOT           Path to vcpkg (default: ~/vcpkg)"
+            echo "  DUCKDB_VERSION       DuckDB version to build"
             echo ""
-            echo "Examples:"
-            echo "  # Build basic DuckDB"
-            echo "  ./scripts/build-android.sh"
-            echo ""
-            echo "  # Build with common extensions"
-            echo "  ./scripts/build-android.sh --extensions 'icu;json;parquet'"
-            echo ""
-            echo "  # Build with spatial extension (requires vcpkg)"
-            echo "  ./scripts/build-android.sh --spatial"
-            echo ""
-            echo "Note: Spatial extension requires vcpkg to be installed:"
-            echo "      git clone https://github.com/Microsoft/vcpkg.git && ./vcpkg/bootstrap-vcpkg.sh"
+            echo "Included extensions (always):"
+            echo "  spatial, vss, icu, json, parquet, inet, tpch, tpcds"
             exit 0
             ;;
         *)
             log_error "Unknown option: $1"
+            log_error "Use --help for usage information"
             exit 1
             ;;
     esac
