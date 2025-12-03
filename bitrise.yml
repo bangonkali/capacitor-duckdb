@@ -91,6 +91,11 @@ workflows:
             cd android/src/main/jniLibs
             zip -r $BITRISE_DEPLOY_DIR/android-libs.zip .
             cd -
+            
+            # Zip iOS XCFramework
+            cd ios/Frameworks
+            zip -r $BITRISE_DEPLOY_DIR/DuckDB.xcframework.zip DuckDB.xcframework
+            cd -
     - github-release@0:
         inputs:
         - api_token: "$GITHUB_ACCESS_TOKEN"
@@ -103,7 +108,7 @@ workflows:
         - files_to_upload: |-
             $RELEASE_ARCHIVE_PATH
             $BITRISE_DEPLOY_DIR/android-libs.zip
-            ios/Sources/CapacitorDuckDbPlugin/libduckdb.a
+            $BITRISE_DEPLOY_DIR/DuckDB.xcframework.zip
     - script@1:
         title: Authenticate with NPM
         inputs:
