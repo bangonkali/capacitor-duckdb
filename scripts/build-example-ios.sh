@@ -55,6 +55,7 @@ log_step() {
 
 # Parse arguments
 SKIP_DB=false
+REBUILD_NATIVE=false
 BUILD_TYPE="debug"
 BUILD_TARGET="simulator"
 SIMULATOR_NAME=""
@@ -63,6 +64,10 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     --skip-db)
       SKIP_DB=true
+      shift
+      ;;
+    --rebuild-native)
+      REBUILD_NATIVE=true
       shift
       ;;
     --release)
@@ -87,6 +92,7 @@ while [[ $# -gt 0 ]]; do
       echo "Usage: $0 [options]"
       echo ""
       echo "Options:"
+      echo "  --rebuild-native    Rebuild native DuckDB library (runs ./scripts/build-ios.sh)"
       echo "  --skip-db           Skip demo database preparation"
       echo "  --release           Build release configuration (default: debug)"
       echo "  --device            Build for physical iOS device"
@@ -97,11 +103,11 @@ while [[ $# -gt 0 ]]; do
       echo "  # Build for simulator (default)"
       echo "  ./scripts/build-example-ios.sh"
       echo ""
+      echo "  # Rebuild native lib and then the app"
+      echo "  ./scripts/build-example-ios.sh --rebuild-native"
+      echo ""
       echo "  # Build release for device"
       echo "  ./scripts/build-example-ios.sh --release --device"
-      echo ""
-      echo "  # Build for specific simulator"
-      echo "  ./scripts/build-example-ios.sh --simulator 'iPhone 15 Pro Max'"
       exit 0
       ;;
     *)
@@ -117,10 +123,18 @@ echo ""
 
 # Step 0: Check for XCFramework
 log_step "Step 0: Checking for DuckDB XCFramework..."
+
+if [ "$REBUILD_NATIVE" = true ]; then
+    log_info "Rebuilding native DuckDB library (--rebuild-native)..."
+    "$ROOT_DIR/scripts/build-ios.sh"
+    echo ""
+fi
+
 XCFRAMEWORK_PATH="$ROOT_DIR/ios/Frameworks/DuckDB.xcframework"
 if [ ! -d "$XCFRAMEWORK_PATH" ]; then
     log_warn "DuckDB XCFramework not found at $XCFRAMEWORK_PATH"
     log_warn "Please run ./scripts/build-ios.sh first to build the native library"
+    log_warn "OR run this script with --rebuild-native"
     log_warn ""
     log_warn "Continuing anyway - the build may fail at linking stage..."
     echo ""

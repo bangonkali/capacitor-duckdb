@@ -175,7 +175,7 @@ get_vss_source() {
         git pull
     else
         log_info "Cloning duckdb-vss repository..."
-        git clone --recurse-submodules https://github.com/asg017/duckdb-vss.git "$vss_dir"
+        git clone --recurse-submodules https://github.com/duckdb/duckdb-vss "$vss_dir"
     fi
 }
 
