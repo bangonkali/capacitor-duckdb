@@ -62,7 +62,7 @@ const SettingsTab: React.FC = () => {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        await settingsService.initialize();
+        // getSettings handles initialization and returns defaults on failure
         const loaded = await settingsService.getSettings();
         setSettings(loaded);
       } catch (error) {
@@ -185,7 +185,7 @@ const SettingsTab: React.FC = () => {
                 max={2000}
                 onIonChange={(e) => {
                   const val = parseInt(String(e.detail.value), 10);
-                  if (!Number.isNaN(val) && val >= 100 && val <= 2000) {
+                  if (!Number.isNaN(val)) {
                     updateLayerLimit('bathymetry', val);
                   }
                 }}
@@ -205,7 +205,7 @@ const SettingsTab: React.FC = () => {
                 max={10000}
                 onIonChange={(e) => {
                   const val = parseInt(String(e.detail.value), 10);
-                  if (!Number.isNaN(val) && val >= 500 && val <= 10000) {
+                  if (!Number.isNaN(val)) {
                     updateLayerLimit('polygons', val);
                   }
                 }}
@@ -225,7 +225,7 @@ const SettingsTab: React.FC = () => {
                 max={15000}
                 onIonChange={(e) => {
                   const val = parseInt(String(e.detail.value), 10);
-                  if (!Number.isNaN(val) && val >= 500 && val <= 15000) {
+                  if (!Number.isNaN(val)) {
                     updateLayerLimit('lines', val);
                   }
                 }}
@@ -245,7 +245,7 @@ const SettingsTab: React.FC = () => {
                 max={20000}
                 onIonChange={(e) => {
                   const val = parseInt(String(e.detail.value), 10);
-                  if (!Number.isNaN(val) && val >= 1000 && val <= 20000) {
+                  if (!Number.isNaN(val)) {
                     updateLayerLimit('points', val);
                   }
                 }}

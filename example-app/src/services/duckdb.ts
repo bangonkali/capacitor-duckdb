@@ -27,7 +27,21 @@ class DuckDBService {
     if (this.initialized.get(dbName)) {
       return;
     }
-    await CapacitorDuckDb.open({ database: dbName });
+    try {
+      await CapacitorDuckDb.open({ database: dbName });
+    } catch (error) {
+      // Check if already open to be robust against restarts/reloads
+      try {
+        const status = await CapacitorDuckDb.isDBOpen({ database: dbName });
+        if (status.result) {
+          this.initialized.set(dbName, true);
+          return;
+        }
+      } catch (_e) {
+        // Ignore check error, throw original
+      }
+      throw error;
+    }
     this.initialized.set(dbName, true);
   }
 

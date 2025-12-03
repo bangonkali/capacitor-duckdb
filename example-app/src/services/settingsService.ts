@@ -5,10 +5,10 @@
  * Settings are stored as key-value pairs in an app_settings table.
  */
 
-import { duckdb, DEMO_DB } from './duckdb';
+import { duckdb } from './duckdb';
 
-// Database name - use the same demo database
-const SETTINGS_DB = DEMO_DB;
+// Database name - use a dedicated settings database to avoid conflicts
+const SETTINGS_DB = 'settings';
 
 // ============================================================================
 // Types
@@ -54,6 +54,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 // In-memory cache of settings
 let settingsCache: AppSettings | null = null;
 let initialized = false;
+let initializationPromise: Promise<void> | null = null;
 
 // ============================================================================
 // Initialization
@@ -64,27 +65,47 @@ let initialized = false;
  */
 export async function initializeSettings(): Promise<void> {
   if (initialized) return;
-
-  try {
-    // Create settings table if not exists
-    await duckdb.execute(SETTINGS_DB, `
-      CREATE TABLE IF NOT EXISTS app_settings (
-        key VARCHAR PRIMARY KEY,
-        value VARCHAR NOT NULL,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-    
-    // Load settings into cache
-    await loadSettings();
-    initialized = true;
-    console.log('[SettingsService] Initialized');
-  } catch (error) {
-    console.error('[SettingsService] Failed to initialize:', error);
-    // Use defaults if initialization fails
-    settingsCache = { ...DEFAULT_SETTINGS };
-    initialized = true;
+  
+  // Return existing promise if initialization is in progress
+  if (initializationPromise) {
+    return initializationPromise;
   }
+
+  initializationPromise = (async () => {
+    try {
+      // Create settings table if not exists
+      await duckdb.execute(SETTINGS_DB, `
+        CREATE TABLE IF NOT EXISTS app_settings (
+          key VARCHAR PRIMARY KEY,
+          value VARCHAR NOT NULL,
+          updated_at VARCHAR
+        );
+      `);
+
+      // Ensure updated_at column exists (migration)
+      try {
+        await duckdb.execute(SETTINGS_DB, "ALTER TABLE app_settings ADD COLUMN updated_at VARCHAR");
+      } catch {
+        // Column likely exists
+      }
+      
+      // Load settings into cache
+      await loadSettings();
+      initialized = true;
+      console.log('[SettingsService] Initialized');
+    } catch (error) {
+      console.error('[SettingsService] Failed to initialize:', error);
+      // Do not set initialized = true if we failed to setup the DB.
+      // This ensures we retry initialization on next access.
+      // We still populate cache with defaults so the app doesn't crash if it ignores the error.
+      settingsCache = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+      throw error;
+    } finally {
+      initializationPromise = null;
+    }
+  })();
+
+  return initializationPromise;
 }
 
 // ============================================================================
@@ -102,24 +123,52 @@ async function loadSettings(): Promise<void> {
     );
 
     // Start with defaults
-    settingsCache = { ...DEFAULT_SETTINGS };
+    settingsCache = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
 
-    // Override with stored values
-    for (const row of result.values) {
-      try {
-        const parsed = JSON.parse(row.value);
-        setNestedValue(settingsCache, row.key, parsed);
-      } catch {
-        // Skip invalid JSON
-        console.warn(`[SettingsService] Invalid JSON for key: ${row.key}`);
+    if (result.values.length === 0) {
+      console.log('[SettingsService] Settings table empty, populating with defaults');
+      const flatDefaults = flattenObject(DEFAULT_SETTINGS);
+      
+      // Persist defaults to DB
+      for (const [key, value] of Object.entries(flatDefaults)) {
+        await persistSetting(key, value);
+      }
+    } else {
+      // Override with stored values
+      for (const row of result.values) {
+        try {
+          const parsed = JSON.parse(row.value);
+          setNestedValue(settingsCache, row.key, parsed);
+        } catch {
+          // Skip invalid JSON
+          console.warn(`[SettingsService] Invalid JSON for key: ${row.key}`);
+        }
       }
     }
 
     console.log('[SettingsService] Loaded settings from database');
   } catch (error) {
     console.error('[SettingsService] Failed to load settings:', error);
-    settingsCache = { ...DEFAULT_SETTINGS };
+    settingsCache = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+    throw error;
   }
+}
+
+/**
+ * Helper to persist a single setting to DB without initialization check
+ */
+async function persistSetting(key: string, value: unknown): Promise<void> {
+  const jsonValue = JSON.stringify(value);
+  const escapedValue = jsonValue.replace(/'/g, "''");
+  const now = new Date().toISOString();
+  
+  await duckdb.execute(SETTINGS_DB, `
+    INSERT INTO app_settings (key, value, updated_at)
+    VALUES ('${key}', '${escapedValue}', '${now}')
+    ON CONFLICT (key) DO UPDATE SET 
+      value = '${escapedValue}',
+      updated_at = '${now}';
+  `);
 }
 
 /**
@@ -127,7 +176,12 @@ async function loadSettings(): Promise<void> {
  */
 export async function getSettings(): Promise<AppSettings> {
   if (!initialized) {
-    await initializeSettings();
+    try {
+      await initializeSettings();
+    } catch (e) {
+      console.warn('[SettingsService] Initialization failed, returning defaults', e);
+      return { ...DEFAULT_SETTINGS };
+    }
   }
   return settingsCache || { ...DEFAULT_SETTINGS };
 }
@@ -154,17 +208,8 @@ export async function setSetting(keyPath: string, value: unknown): Promise<void>
   }
 
   // Persist to database
-  const jsonValue = JSON.stringify(value);
-  const escapedValue = jsonValue.replace(/'/g, "''");
-  
   try {
-    await duckdb.execute(SETTINGS_DB, `
-      INSERT INTO app_settings (key, value, updated_at)
-      VALUES ('${keyPath}', '${escapedValue}', CURRENT_TIMESTAMP)
-      ON CONFLICT (key) DO UPDATE SET 
-        value = '${escapedValue}',
-        updated_at = CURRENT_TIMESTAMP;
-    `);
+    await persistSetting(keyPath, value);
     console.log(`[SettingsService] Saved setting: ${keyPath}`);
   } catch (error) {
     console.error(`[SettingsService] Failed to save setting ${keyPath}:`, error);
