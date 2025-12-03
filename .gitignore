@@ -23,7 +23,7 @@ DerivedData/
 # DuckDB build artifacts
 build/duckdb/
 *.duckdb
-
+*.zip
 
 # Based on Android gitignore template: https://github.com/github/gitignore/blob/HEAD/Android.gitignore
 
