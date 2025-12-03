@@ -152,8 +152,6 @@ workflows:
             fi
     - deploy-to-bitrise-io@2: {}
     triggers:
-      push:
-      - branch: main
       tag:
       - name: "v*"
 meta:
