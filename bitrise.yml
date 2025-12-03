@@ -1,0 +1,173 @@
+---
+format_version: '23'
+default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
+project_type: ios
+workflows:
+  archive_and_export_app:
+    summary: Create an IPA file to install your app on a device or share it with
+      your team.
+    description: The workflow will first clone your Git repository, cache and
+      install your project's dependencies if any, export an IPA file from the
+      project and save it.
+    steps:
+    - git-clone@8:
+        inputs:
+        - fetch_tags: 'yes'
+    - xcode-archive@5:
+        inputs:
+        - project_path: "$BITRISE_PROJECT_PATH"
+        - scheme: "$BITRISE_SCHEME"
+        - distribution_method: "$BITRISE_DISTRIBUTION_METHOD"
+        - automatic_code_signing: api-key
+        - cache_level: none
+    - deploy-to-bitrise-io@2: {}
+  build:
+    summary: Build your Xcode project.
+    description: The workflow will first clone your Git repository, cache and
+      install your project's dependencies if any and build your project.
+    steps:
+    - git-clone@8:
+        inputs:
+        - fetch_tags: 'yes'
+    - restore-spm-cache@2: {}
+    - xcode-build-for-test@3:
+        inputs:
+        - project_path: "$BITRISE_PROJECT_PATH"
+        - scheme: "$BITRISE_SCHEME"
+        - destination: platform=iOS Simulator,name=iPhone 8 Plus,OS=latest
+        - cache_level: none
+    - save-spm-cache@1: {}
+    - deploy-to-bitrise-io@2: {}
+    triggers:
+      push:
+      - branch: main
+      pull_request:
+      - source_branch: "*"
+  build_npm_package:
+    summary: Build native binaries and create NPM package
+    description: |
+      Installs dependencies (Ninja, CMake, vcpkg), builds DuckDB native libraries 
+      for Android and iOS with Spatial extension, and packs the NPM package.
+    steps:
+    - git-clone@8:
+        inputs:
+        - fetch_tags: 'yes'
+    - script@1:
+        title: Install Dependencies (Ninja, CMake, vcpkg)
+        inputs:
+        - content: |
+            #!/bin/bash
+            set -e
+            
+            echo "Installing Ninja and CMake..."
+            brew install ninja cmake
+            
+            echo "Installing vcpkg..."
+            git clone https://github.com/Microsoft/vcpkg.git $HOME/vcpkg
+            $HOME/vcpkg/bootstrap-vcpkg.sh
+            
+            # Expose VCPKG_ROOT for subsequent steps
+            envman add --key VCPKG_ROOT --value "$HOME/vcpkg"
+    - script@1:
+        title: Build Android Binaries
+        inputs:
+        - content: |
+            #!/bin/bash
+            set -e
+            
+            # Ensure VCPKG_ROOT is set
+            export VCPKG_ROOT="$HOME/vcpkg"
+            
+            echo "Building Android binaries with Spatial extension..."
+            # Using the recommended extensions list from BUILDING.md
+            export DUCKDB_EXTENSIONS="icu;json;parquet;inet;tpch;tpcds;vss"
+            ./scripts/build-android.sh --spatial
+    - script@1:
+        title: Build iOS Binaries
+        inputs:
+        - content: |
+            #!/bin/bash
+            set -e
+            
+            # Ensure VCPKG_ROOT is set
+            export VCPKG_ROOT="$HOME/vcpkg"
+            
+            echo "Building iOS binaries with Spatial extension..."
+            ./scripts/build-ios.sh --spatial
+    - script@1:
+        title: Create NPM Package
+        inputs:
+        - content: |
+            #!/bin/bash
+            set -e
+            
+            echo "Installing NPM dependencies..."
+            npm install
+            
+            echo "Building TypeScript..."
+            npm run build
+            
+            echo "Packing NPM package..."
+            npm pack
+            
+            # Move the tarball to the deploy directory
+            mv *.tgz $BITRISE_DEPLOY_DIR/
+
+            # Zip Android binaries to preserve structure and avoid name collisions
+            cd android/src/main/jniLibs
+            zip -r $BITRISE_DEPLOY_DIR/android-libs.zip .
+            cd -
+    - github-release@0:
+        inputs:
+        - api_token: "$GITHUB_ACCESS_TOKEN"
+        - username: "$GITHUB_USERNAME"
+        - repository_url: https://github.com/bangonkali/capacitor-duckdb
+        - tag: "$BITRISE_GIT_TAG"
+        - name: "$BITRISE_GIT_TAG"
+        - body: "Automated release from Bitrise build $BITRISE_BUILD_NUMBER"
+        - draft: "no"
+        - files_to_upload: |-
+            $BITRISE_DEPLOY_DIR/*.tgz
+            $BITRISE_DEPLOY_DIR/android-libs.zip
+            ios/Sources/CapacitorDuckDbPlugin/libduckdb.a
+    - script@1:
+        title: Authenticate with NPM
+        inputs:
+        - content: |
+            #!/bin/bash
+            set -e
+            echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > .npmrc
+    - script@1:
+        title: Publish to NPM
+        inputs:
+        - content: |
+            #!/bin/bash
+            set -e
+            # Only publish if we are on a tag
+            if [[ -n "$BITRISE_GIT_TAG" ]]; then
+                echo "Publishing version $BITRISE_GIT_TAG to NPM..."
+                npm publish --access public
+            else
+                echo "Not a tagged build, skipping NPM publish."
+            fi
+    - deploy-to-bitrise-io@2: {}
+    triggers:
+      push:
+      - branch: main
+      tag:
+      - name: "v*"
+meta:
+  bitrise.io:
+    stack: osx-xcode-16.4.x
+    machine_type_id: g2.mac.large
+app:
+  envs:
+  - BITRISE_PROJECT_PATH: example-app/ios/App/App.xcworkspace
+    opts:
+      is_expand: false
+  - BITRISE_SCHEME: App
+    opts:
+      is_expand: false
+  - BITRISE_DISTRIBUTION_METHOD: development
+    opts:
+      is_expand: false
