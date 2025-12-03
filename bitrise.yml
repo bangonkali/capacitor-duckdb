@@ -37,8 +37,8 @@ workflows:
             # Ensure VCPKG_ROOT is set
             export VCPKG_ROOT="$HOME/vcpkg"
 
-            echo "Building iOS binaries with Spatial extension..."
-            ./scripts/build-ios.sh --spatial
+            echo "Building iOS binaries (monolithic with all extensions)..."
+            ./scripts/build-ios.sh
     - script:
         title: Zip iOS Artifacts
         inputs:
@@ -63,8 +63,8 @@ workflows:
         - content: |
             #!/bin/bash
             set -e
-            echo "Installing Ninja, CMake, and pkg-config..."
-            sudo apt-get update && sudo apt-get install -y ninja-build cmake pkg-config
+            echo "Installing Ninja, CMake, pkg-config, and autoconf tools..."
+            sudo apt-get update && sudo apt-get install -y ninja-build cmake pkg-config autoconf automake libtool
 
             echo "Installing vcpkg..."
             git clone https://github.com/Microsoft/vcpkg.git $HOME/vcpkg
@@ -81,9 +81,8 @@ workflows:
             # Ensure VCPKG_ROOT is set
             export VCPKG_ROOT="$HOME/vcpkg"
 
-            echo "Building Android binaries with Spatial extension..."
-            export DUCKDB_EXTENSIONS="icu;json;parquet;inet;tpch;tpcds;vss"
-            ./scripts/build-android.sh --spatial
+            echo "Building Android binaries (monolithic with all extensions)..."
+            ./scripts/build-android.sh
     - script:
         title: Zip Android Artifacts
         inputs:
