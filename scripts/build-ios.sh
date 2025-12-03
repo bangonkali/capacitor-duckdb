@@ -257,6 +257,12 @@ build_for_platform() {
     if [[ "$platform" == "iphonesimulator" ]]; then
         system_name="iOS"
     fi
+
+    # Determine system processor for PROJ compatibility (expects aarch64 for arm64)
+    local system_processor="$arch"
+    if [[ "$arch" == "arm64" ]]; then
+        system_processor="aarch64"
+    fi
     
     # Build with vcpkg toolchain
     cmake -G "Ninja" \
@@ -267,6 +273,7 @@ build_for_platform() {
         -DVCPKG_INSTALLED_DIR="$spatial_dir/vcpkg_installed" \
         -DVCPKG_OVERLAY_PORTS="$spatial_dir/vcpkg_ports" \
         -DCMAKE_SYSTEM_NAME="$system_name" \
+        -DCMAKE_SYSTEM_PROCESSOR="$system_processor" \
         -DCMAKE_OSX_ARCHITECTURES="$arch" \
         -DCMAKE_OSX_SYSROOT="$sdk_path" \
         -DCMAKE_OSX_DEPLOYMENT_TARGET="$deployment_target" \
