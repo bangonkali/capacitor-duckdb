@@ -16,9 +16,9 @@ set -e
 
 # Configuration
 DUCKDB_VERSION="${DUCKDB_VERSION:-main}"
-DUCKDB_EXTENSIONS="${DUCKDB_EXTENSIONS:-}"
+DUCKDB_EXTENSIONS="${DUCKDB_EXTENSIONS:-icu;json;parquet;inet;tpch;tpcds;vss}"
 BUILD_APP=false
-BUILD_SPATIAL=false
+BUILD_SPATIAL=true
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="${PROJECT_ROOT}/build/duckdb"
@@ -160,6 +160,25 @@ get_spatial_source() {
     git submodule update --init --recursive
 }
 
+# Clone or update duckdb-vss source
+get_vss_source() {
+    local vss_dir="${PROJECT_ROOT}/build/vss/duckdb-vss"
+    
+    log_step "Getting duckdb-vss source..."
+    
+    mkdir -p "${PROJECT_ROOT}/build/vss"
+    
+    if [ -d "$vss_dir" ]; then
+        log_info "Using existing duckdb-vss source..."
+        cd "$vss_dir"
+        git fetch origin
+        git pull
+    else
+        log_info "Cloning duckdb-vss repository..."
+        git clone --recurse-submodules https://github.com/asg017/duckdb-vss.git "$vss_dir"
+    fi
+}
+
 # Install vcpkg dependencies for Android (spatial extension)
 install_vcpkg_deps() {
     local triplet=$1
@@ -297,6 +316,7 @@ build_for_abi() {
     local abi=$1
     local platform_name="android_${abi}"
     local build_path="$BUILD_DIR/duckdb/build/${platform_name}"
+    local vss_dir="${PROJECT_ROOT}/build/vss/duckdb-vss"
     
     log_step "Building DuckDB for $abi..."
     
@@ -324,6 +344,8 @@ build_for_abi() {
     # Add extensions if specified
     if [ -n "$DUCKDB_EXTENSIONS" ]; then
         cmake_args+=(-DBUILD_EXTENSIONS="${DUCKDB_EXTENSIONS}")
+        # Add external extension directories (for VSS)
+        cmake_args+=(-DEXTERNAL_EXTENSION_DIRECTORIES="$vss_dir")
         log_info "Building with extensions: $DUCKDB_EXTENSIONS"
     fi
     
@@ -357,6 +379,7 @@ build_spatial_for_abi() {
     local platform_name="android_${abi}"
     local spatial_dir="${PROJECT_ROOT}/build/spatial/duckdb-spatial"
     local build_path="$spatial_dir/build/${platform_name}"
+    local vss_dir="${PROJECT_ROOT}/build/vss/duckdb-vss"
     
     log_step "Building DuckDB with spatial extension for $abi..."
     
@@ -428,6 +451,7 @@ build_spatial_for_abi() {
         -DLOCAL_EXTENSION_REPO="" \
         -DOVERRIDE_GIT_DESCRIBE="" \
         ${DUCKDB_EXTENSIONS:+-DBUILD_EXTENSIONS="$DUCKDB_EXTENSIONS"} \
+        -DEXTERNAL_EXTENSION_DIRECTORIES="$vss_dir" \
         -S "$spatial_dir/duckdb" \
         -B "$build_path"
     
@@ -505,6 +529,11 @@ main() {
     
     check_tools
     check_ndk
+    
+    # Get VSS source if VSS is in extensions
+    if [[ "$DUCKDB_EXTENSIONS" == *"vss"* ]]; then
+        get_vss_source
+    fi
     
     if [ "$BUILD_SPATIAL" = true ]; then
         # Spatial extension build (uses vcpkg + duckdb-spatial)
