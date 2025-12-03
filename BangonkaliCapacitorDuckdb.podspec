@@ -11,43 +11,46 @@ Pod::Spec.new do |s|
   s.author = package['author']
   s.source = { :git => package['repository']['url'], :tag => s.version.to_s }
   
-  # Swift and Objective-C source files
-  s.source_files = 'ios/Sources/**/*.{swift,h,m,c,cc,mm,cpp}'
+  # Swift source files and C++ wrapper
+  # duckdb_ios.cpp uses C++ API internally but exposes C interface
+  s.source_files = [
+    'ios/Sources/CapacitorDuckDbPlugin/*.swift',
+    'ios/Sources/CapacitorDuckDbPlugin/include/duckdb.h',
+    'ios/Sources/CapacitorDuckDbPlugin/duckdb_ios.hpp',
+    'ios/Sources/CapacitorDuckDbPlugin/duckdb_ios.cpp'
+  ]
   
   # DuckDB XCFramework (static library)
-  # Built by: ./scripts/build-ios.sh
-  # Contains: arm64 (device) + arm64/x86_64 (simulator) architectures
-  # Static linking preferred for iOS:
-  #   - No code signing issues with embedded frameworks
-  #   - Dead code elimination reduces final app size
-  #   - Faster app startup (no dylib loading)
   s.vendored_frameworks = 'ios/Frameworks/DuckDB.xcframework'
   
-  # DuckDB C API header location for Swift bridging
-  s.public_header_files = 'ios/Sources/CapacitorDuckDbPlugin/include/*.h'
+  # Only expose our wrapper header and duckdb.h as public
+  # The C++ headers are private implementation details
+  s.public_header_files = [
+    'ios/Sources/CapacitorDuckDbPlugin/include/duckdb.h',
+    'ios/Sources/CapacitorDuckDbPlugin/duckdb_ios.hpp'
+  ]
+  
+  # Preserve DuckDB C++ headers for C++ compilation
   s.preserve_paths = 'ios/Sources/CapacitorDuckDbPlugin/include/**/*'
   
-  # Required system libraries for DuckDB
-  # - c++: DuckDB is written in C++, requires C++ standard library
-  # - z: zlib for compression (parquet, etc.)
-  # - sqlite3: SQLite compatibility layer
   s.libraries = 'c++', 'z', 'sqlite3'
-  
-  # Required system frameworks
   s.frameworks = 'Foundation', 'Security'
   
-  # Build settings for DuckDB integration
+  # Build settings
   s.pod_target_xcconfig = {
-    # Header search path for DuckDB C API
-    'HEADER_SEARCH_PATHS' => '"$(PODS_TARGET_SRCROOT)/ios/Sources/CapacitorDuckDbPlugin/include"',
-    # Swift import paths for the CDuckDB module
+    # Header search paths - include DuckDB C++ headers here
+    'HEADER_SEARCH_PATHS' => [
+      '"$(PODS_TARGET_SRCROOT)/ios/Sources/CapacitorDuckDbPlugin/include"',
+      '"$(PODS_TARGET_SRCROOT)/ios/Sources/CapacitorDuckDbPlugin"'
+    ].join(' '),
     'SWIFT_INCLUDE_PATHS' => '"$(PODS_TARGET_SRCROOT)/ios/Sources/CapacitorDuckDbPlugin/include"',
-    # Enable C++ interop for Swift
     'CLANG_CXX_LANGUAGE_STANDARD' => 'c++17',
-    # Module stability for framework distribution
     'BUILD_LIBRARY_FOR_DISTRIBUTION' => 'YES',
-    # Other linker flags for static library
-    'OTHER_LDFLAGS' => '-ObjC -all_load'
+    'OTHER_LDFLAGS' => '-ObjC -all_load',
+    'GCC_ENABLE_CPP_EXCEPTIONS' => 'YES',
+    'GCC_ENABLE_CPP_RTTI' => 'YES',
+    # Don't treat warnings as errors for DuckDB headers
+    'GCC_TREAT_WARNINGS_AS_ERRORS' => 'NO'
   }
   
   s.ios.deployment_target = '14.0'

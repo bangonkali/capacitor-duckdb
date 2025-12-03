@@ -1,12 +1,26 @@
 import Foundation
-import CDuckDB
+import DuckDBiOS
 
+/**
+ * DuckDB wrapper for iOS using C++ backend with static extension support.
+ * 
+ * This implementation uses the duckdb_ios C++ wrapper which properly loads
+ * statically linked extensions (like spatial) using C++ template methods.
+ * 
+ * The C API (CDuckDB) does not support LoadStaticExtension<T>, which is why
+ * this C++ wrapper is necessary for spatial extension functionality.
+ */
 @objc public class CapacitorDuckDb: NSObject {
     
     // MARK: - Properties
     
-    private var databases: [String: duckdb_database] = [:]
-    private var connections: [String: duckdb_connection] = [:]
+    /// Map of database name to C++ wrapper handle
+    private var databases: [String: DuckDBDatabaseHandle] = [:]
+    
+    /// Map of database name to connection handle
+    private var connections: [String: DuckDBConnectionHandle] = [:]
+    
+    /// Serial queue for thread-safe database access
     private let queue = DispatchQueue(label: "com.capacitor.duckdb", qos: .userInitiated)
     
     // Constants
@@ -29,18 +43,22 @@ import CDuckDB
     // MARK: - Public Methods
     
     @objc public func echo(_ value: String) -> String {
-        print(value)
+        print("[DuckDB iOS] echo: \(value)")
         return value
     }
     
     @objc public func getVersion() -> String {
-        return String(cString: duckdb_library_version())
+        guard let version = duckdb_ios_get_version() else {
+            return "unknown"
+        }
+        return String(cString: version)
     }
     
     @objc public func open(_ database: String) -> String? {
         return queue.sync {
             // Check if already open
             if databases[database] != nil {
+                print("[DuckDB iOS] Database already open: \(database)")
                 return nil // Already open, not an error
             }
             
@@ -48,104 +66,75 @@ import CDuckDB
             copyDatabaseFromBundleIfNeeded(database)
             
             let dbPath = databasePath(for: database)
+            print("[DuckDB iOS] Opening database at: \(dbPath)")
             
-            var db: duckdb_database? = nil
-            var conn: duckdb_connection? = nil
+            var errorPtr: UnsafeMutablePointer<CChar>? = nil
             
-            // Open database
-            let openResult = duckdb_open(dbPath, &db)
-            if openResult != DuckDBSuccess {
-                return "Failed to open database: \(database)"
-            }
+            // Open database using C++ wrapper (this loads spatial extension!)
+            let db = duckdb_ios_open_database(dbPath, &errorPtr)
             
-            guard let openedDb = db else {
-                return "Failed to open database: \(database)"
+            // Check for error
+            if db == nil {
+                let errorMsg: String
+                if let errPtr = errorPtr {
+                    errorMsg = String(cString: errPtr)
+                    duckdb_ios_free_string(errPtr)
+                } else {
+                    errorMsg = "Unknown error opening database"
+                }
+                print("[DuckDB iOS] Failed to open database: \(errorMsg)")
+                return "Failed to open database: \(errorMsg)"
             }
             
             // Create connection
-            let connectResult = duckdb_connect(openedDb, &conn)
-            if connectResult != DuckDBSuccess {
-                var mutableDb = db
-                duckdb_close(&mutableDb)
-                return "Failed to connect to database: \(database)"
-            }
+            let conn = duckdb_ios_connect(db, &errorPtr)
             
-            guard let openedConn = conn else {
-                var mutableDb = db
-                duckdb_close(&mutableDb)
-                return "Failed to connect to database: \(database)"
-            }
-            
-            databases[database] = openedDb
-            connections[database] = openedConn
-            
-            // Load statically linked extensions
-            // These are built into the DuckDB library via EXTENSION_STATIC_BUILD
-            loadStaticExtensions(conn: openedConn)
-            
-            return nil
-        }
-    }
-    
-    // MARK: - Extension Loading
-    
-    /// Load statically linked extensions after database open
-    /// On iOS, extensions are statically compiled into the DuckDB library.
-    /// We need to explicitly load them to register the functions.
-    private func loadStaticExtensions(conn: duckdb_connection) {
-        // List of extensions that are statically linked
-        // These must match what was compiled in build-ios.sh
-        let staticExtensions = [
-            "spatial",  // Spatial functions (ST_Point, ST_Distance, etc.)
-            "parquet",  // Parquet file format
-            "json",     // JSON functions
-            "icu"       // Unicode support
-        ]
-        
-        for ext in staticExtensions {
-            var result = duckdb_result()
-            // LOAD will activate a statically linked extension
-            let loadQuery = "LOAD \(ext)"
-            let loadResult = duckdb_query(conn, loadQuery, &result)
-            
-            if loadResult == DuckDBSuccess {
-                print("[DuckDB] Loaded extension: \(ext)")
-            } else {
-                // Not an error if extension wasn't compiled in
-                let errorPtr = duckdb_result_error(&result)
-                if let errorPtr = errorPtr {
-                    let error = String(cString: errorPtr)
-                    // Only log if it's not a "not found" error
-                    if !error.contains("not found") && !error.contains("not installed") {
-                        print("[DuckDB] Failed to load \(ext): \(error)")
-                    }
+            if conn == nil {
+                let errorMsg: String
+                if let errPtr = errorPtr {
+                    errorMsg = String(cString: errPtr)
+                    duckdb_ios_free_string(errPtr)
+                } else {
+                    errorMsg = "Unknown error connecting"
                 }
+                duckdb_ios_close_database(db)
+                print("[DuckDB iOS] Failed to connect: \(errorMsg)")
+                return "Failed to connect to database: \(errorMsg)"
             }
-            duckdb_destroy_result(&result)
+            
+            databases[database] = db
+            connections[database] = conn
+            
+            // Check if spatial extension loaded
+            if duckdb_ios_has_spatial_extension(db) {
+                print("[DuckDB iOS] ✅ Spatial extension is available!")
+            } else {
+                print("[DuckDB iOS] ⚠️ Spatial extension NOT loaded")
+            }
+            
+            print("[DuckDB iOS] Database opened successfully: \(database)")
+            return nil
         }
     }
     
     @objc public func close(_ database: String) -> String? {
         return queue.sync {
-            guard var db: duckdb_database? = databases[database], var conn: duckdb_connection? = connections[database] else {
+            guard let conn = connections[database] else {
                 return "Database not open: \(database)"
             }
             
-            duckdb_disconnect(&conn)
-            duckdb_close(&db)
-            
-            databases.removeValue(forKey: database)
+            // Disconnect
+            duckdb_ios_disconnect(conn)
             connections.removeValue(forKey: database)
             
-            return nil
-        }
-    }
-    
-    @objc public func closeAll() {
-        queue.sync {
-            for (name, _) in databases {
-                _ = close(name)
+            // Close database
+            if let db = databases[database] {
+                duckdb_ios_close_database(db)
+                databases.removeValue(forKey: database)
             }
+            
+            print("[DuckDB iOS] Database closed: \(database)")
+            return nil
         }
     }
     
@@ -155,83 +144,128 @@ import CDuckDB
                 return ["error": "Database not open: \(database)"]
             }
             
-            var result = duckdb_result()
-            let queryResult = duckdb_query(conn, statements, &result)
+            var errorPtr: UnsafeMutablePointer<CChar>? = nil
+            var rowsChanged: Int64 = 0
             
-            defer {
-                duckdb_destroy_result(&result)
-            }
+            let success = duckdb_ios_execute(conn, statements, &rowsChanged, &errorPtr)
             
-            if queryResult != DuckDBSuccess {
-                let errorPtr = duckdb_result_error(&result)
-                let errorMsg = errorPtr != nil ? String(cString: errorPtr!) : "Unknown error"
+            if !success {
+                let errorMsg: String
+                if let errPtr = errorPtr {
+                    errorMsg = String(cString: errPtr)
+                    duckdb_ios_free_string(errPtr)
+                } else {
+                    errorMsg = "Unknown execution error"
+                }
                 return ["error": errorMsg]
             }
             
-            let rowsChanged = duckdb_rows_changed(&result)
             return ["changes": Int(rowsChanged)]
         }
     }
     
     @objc public func query(_ database: String, statement: String) -> [String: Any] {
-        return queryWithParams(database, statement: statement, values: nil)
-    }
-    
-    @objc public func queryWithParams(_ database: String, statement: String, values: [Any]?) -> [String: Any] {
         return queue.sync {
             guard let conn = connections[database] else {
                 return ["error": "Database not open: \(database)"]
             }
             
-            var result = duckdb_result()
-            var queryResult: duckdb_state
+            var errorPtr: UnsafeMutablePointer<CChar>? = nil
             
-            if let params = values, !params.isEmpty {
-                // Prepared statement with parameters
-                var stmt: duckdb_prepared_statement? = nil
-                let prepareResult = duckdb_prepare(conn, statement, &stmt)
-                
-                if prepareResult != DuckDBSuccess || stmt == nil {
-                    let errorPtr = stmt != nil ? duckdb_prepare_error(stmt) : nil
-                    let errorMsg = errorPtr != nil ? String(cString: errorPtr!) : "Prepare failed"
-                    if stmt != nil {
-                        var mutableStmt = stmt
-                        duckdb_destroy_prepare(&mutableStmt)
-                    }
-                    return ["error": errorMsg]
+            guard let jsonResult = duckdb_ios_query(conn, statement, &errorPtr) else {
+                let errorMsg: String
+                if let errPtr = errorPtr {
+                    errorMsg = String(cString: errPtr)
+                    duckdb_ios_free_string(errPtr)
+                } else {
+                    errorMsg = "Unknown query error"
                 }
-                
-                // Bind parameters
-                for (index, value) in params.enumerated() {
-                    let paramIndex = idx_t(index + 1)
-                    let bindResult = bindValue(stmt: stmt!, index: paramIndex, value: value)
-                    if bindResult != DuckDBSuccess {
-                        var mutableStmt = stmt
-                        duckdb_destroy_prepare(&mutableStmt)
-                        return ["error": "Failed to bind parameter at index \(index + 1)"]
-                    }
-                }
-                
-                queryResult = duckdb_execute_prepared(stmt, &result)
-                var mutableStmt = stmt
-                duckdb_destroy_prepare(&mutableStmt)
-            } else {
-                queryResult = duckdb_query(conn, statement, &result)
-            }
-            
-            defer {
-                duckdb_destroy_result(&result)
-            }
-            
-            if queryResult != DuckDBSuccess {
-                let errorPtr = duckdb_result_error(&result)
-                let errorMsg = errorPtr != nil ? String(cString: errorPtr!) : "Unknown error"
                 return ["error": errorMsg]
             }
             
-            // Convert result to array of dictionaries
-            let rows = resultToArray(&result)
-            return ["values": rows]
+            let jsonString = String(cString: jsonResult)
+            duckdb_ios_free_string(jsonResult)
+            
+            // Parse JSON string to Swift array
+            guard let data = jsonString.data(using: .utf8),
+                  let values = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                return ["error": "Failed to parse query results"]
+            }
+            
+            return ["values": values]
+        }
+    }
+    
+    @objc public func queryWithParams(_ database: String, statement: String, values: [Any]) -> [String: Any] {
+        return queue.sync {
+            guard let conn = connections[database] else {
+                return ["error": "Database not open: \(database)"]
+            }
+            
+            var errorPtr: UnsafeMutablePointer<CChar>? = nil
+            
+            // Prepare statement
+            guard let stmt = duckdb_ios_prepare(conn, statement, &errorPtr) else {
+                let errorMsg: String
+                if let errPtr = errorPtr {
+                    errorMsg = String(cString: errPtr)
+                    duckdb_ios_free_string(errPtr)
+                } else {
+                    errorMsg = "Unknown prepare error"
+                }
+                return ["error": errorMsg]
+            }
+            
+            defer {
+                duckdb_ios_destroy_prepared(stmt)
+            }
+            
+            // Bind parameters
+            for (index, value) in values.enumerated() {
+                let paramIndex = Int32(index + 1)
+                
+                if value is NSNull {
+                    _ = duckdb_ios_bind_null(stmt, paramIndex)
+                } else if let intValue = value as? Int {
+                    _ = duckdb_ios_bind_int64(stmt, paramIndex, Int64(intValue))
+                } else if let int64Value = value as? Int64 {
+                    _ = duckdb_ios_bind_int64(stmt, paramIndex, int64Value)
+                } else if let doubleValue = value as? Double {
+                    _ = duckdb_ios_bind_double(stmt, paramIndex, doubleValue)
+                } else if let floatValue = value as? Float {
+                    _ = duckdb_ios_bind_double(stmt, paramIndex, Double(floatValue))
+                } else if let boolValue = value as? Bool {
+                    _ = duckdb_ios_bind_bool(stmt, paramIndex, boolValue)
+                } else if let stringValue = value as? String {
+                    _ = duckdb_ios_bind_string(stmt, paramIndex, stringValue)
+                } else {
+                    // Convert to string as fallback
+                    let strValue = String(describing: value)
+                    _ = duckdb_ios_bind_string(stmt, paramIndex, strValue)
+                }
+            }
+            
+            // Execute prepared statement
+            guard let jsonResult = duckdb_ios_execute_prepared(stmt, &errorPtr) else {
+                let errorMsg: String
+                if let errPtr = errorPtr {
+                    errorMsg = String(cString: errPtr)
+                    duckdb_ios_free_string(errPtr)
+                } else {
+                    errorMsg = "Unknown prepared execution error"
+                }
+                return ["error": errorMsg]
+            }
+            
+            let jsonString = String(cString: jsonResult)
+            duckdb_ios_free_string(jsonResult)
+            
+            guard let data = jsonString.data(using: .utf8),
+                  let resultValues = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                return ["error": "Failed to parse query results"]
+            }
+            
+            return ["values": resultValues]
         }
     }
     
@@ -241,85 +275,111 @@ import CDuckDB
                 return ["error": "Database not open: \(database)"]
             }
             
-            var result = duckdb_result()
-            var queryResult: duckdb_state
+            var errorPtr: UnsafeMutablePointer<CChar>? = nil
             
-            if let params = values, !params.isEmpty {
-                // Prepared statement with parameters
-                var stmt: duckdb_prepared_statement? = nil
-                let prepareResult = duckdb_prepare(conn, statement, &stmt)
+            // If no parameters, use simple execute
+            guard let paramValues = values, !paramValues.isEmpty else {
+                var rowsChanged: Int64 = 0
+                let success = duckdb_ios_execute(conn, statement, &rowsChanged, &errorPtr)
                 
-                if prepareResult != DuckDBSuccess || stmt == nil {
-                    let errorPtr = stmt != nil ? duckdb_prepare_error(stmt) : nil
-                    let errorMsg = errorPtr != nil ? String(cString: errorPtr!) : "Prepare failed"
-                    if stmt != nil {
-                        var mutableStmt = stmt
-                        duckdb_destroy_prepare(&mutableStmt)
+                if !success {
+                    let errorMsg: String
+                    if let errPtr = errorPtr {
+                        errorMsg = String(cString: errPtr)
+                        duckdb_ios_free_string(errPtr)
+                    } else {
+                        errorMsg = "Unknown execution error"
                     }
                     return ["error": errorMsg]
                 }
                 
-                // Bind parameters
-                for (index, value) in params.enumerated() {
-                    let paramIndex = idx_t(index + 1)
-                    let bindResult = bindValue(stmt: stmt!, index: paramIndex, value: value)
-                    if bindResult != DuckDBSuccess {
-                        var mutableStmt = stmt
-                        duckdb_destroy_prepare(&mutableStmt)
-                        return ["error": "Failed to bind parameter at index \(index + 1)"]
-                    }
+                return ["changes": Int(rowsChanged)]
+            }
+            
+            // Prepare statement with parameters
+            guard let stmt = duckdb_ios_prepare(conn, statement, &errorPtr) else {
+                let errorMsg: String
+                if let errPtr = errorPtr {
+                    errorMsg = String(cString: errPtr)
+                    duckdb_ios_free_string(errPtr)
+                } else {
+                    errorMsg = "Unknown prepare error"
                 }
-                
-                queryResult = duckdb_execute_prepared(stmt, &result)
-                var mutableStmt = stmt
-                duckdb_destroy_prepare(&mutableStmt)
-            } else {
-                queryResult = duckdb_query(conn, statement, &result)
-            }
-            
-            defer {
-                duckdb_destroy_result(&result)
-            }
-            
-            if queryResult != DuckDBSuccess {
-                let errorPtr = duckdb_result_error(&result)
-                let errorMsg = errorPtr != nil ? String(cString: errorPtr!) : "Unknown error"
                 return ["error": errorMsg]
             }
             
-            let rowsChanged = duckdb_rows_changed(&result)
-            return ["changes": Int(rowsChanged)]
+            defer {
+                duckdb_ios_destroy_prepared(stmt)
+            }
+            
+            // Bind parameters
+            for (index, value) in paramValues.enumerated() {
+                let paramIndex = Int32(index + 1)
+                
+                if value is NSNull {
+                    _ = duckdb_ios_bind_null(stmt, paramIndex)
+                } else if let intValue = value as? Int {
+                    _ = duckdb_ios_bind_int64(stmt, paramIndex, Int64(intValue))
+                } else if let int64Value = value as? Int64 {
+                    _ = duckdb_ios_bind_int64(stmt, paramIndex, int64Value)
+                } else if let doubleValue = value as? Double {
+                    _ = duckdb_ios_bind_double(stmt, paramIndex, doubleValue)
+                } else if let floatValue = value as? Float {
+                    _ = duckdb_ios_bind_double(stmt, paramIndex, Double(floatValue))
+                } else if let boolValue = value as? Bool {
+                    _ = duckdb_ios_bind_bool(stmt, paramIndex, boolValue)
+                } else if let stringValue = value as? String {
+                    _ = duckdb_ios_bind_string(stmt, paramIndex, stringValue)
+                } else {
+                    let strValue = String(describing: value)
+                    _ = duckdb_ios_bind_string(stmt, paramIndex, strValue)
+                }
+            }
+            
+            // Execute
+            guard let jsonResult = duckdb_ios_execute_prepared(stmt, &errorPtr) else {
+                let errorMsg: String
+                if let errPtr = errorPtr {
+                    errorMsg = String(cString: errPtr)
+                    duckdb_ios_free_string(errPtr)
+                } else {
+                    errorMsg = "Unknown prepared execution error"
+                }
+                return ["error": errorMsg]
+            }
+            
+            duckdb_ios_free_string(jsonResult)
+            
+            // For run(), we just return changes = 0 (actual count is harder to get)
+            return ["changes": 0]
         }
     }
     
     @objc public func deleteDatabase(_ database: String) -> String? {
         return queue.sync {
             // Close if open
-            if databases[database] != nil {
+            if connections[database] != nil {
                 if let error = close(database) {
                     return error
                 }
             }
             
             let dbPath = databasePath(for: database)
-            let fileManager = FileManager.default
-            
-            // Delete main database file
-            if fileManager.fileExists(atPath: dbPath) {
-                do {
-                    try fileManager.removeItem(atPath: dbPath)
-                } catch {
-                    return "Failed to delete database: \(error.localizedDescription)"
-                }
-            }
-            
-            // Delete WAL file if exists
             let walPath = dbPath + ".wal"
-            if fileManager.fileExists(atPath: walPath) {
-                try? fileManager.removeItem(atPath: walPath)
-            }
             
-            return nil
+            do {
+                let fm = FileManager.default
+                if fm.fileExists(atPath: dbPath) {
+                    try fm.removeItem(atPath: dbPath)
+                }
+                if fm.fileExists(atPath: walPath) {
+                    try fm.removeItem(atPath: walPath)
+                }
+                print("[DuckDB iOS] Database deleted: \(database)")
+                return nil
+            } catch {
+                return "Failed to delete database: \(error.localizedDescription)"
+            }
         }
     }
     
@@ -329,81 +389,116 @@ import CDuckDB
     }
     
     @objc public func isOpen(_ database: String) -> Bool {
-        return queue.sync {
-            return databases[database] != nil
-        }
+        return databases[database] != nil
     }
     
     @objc public func listTables(_ database: String) -> [String: Any] {
+        return query(database, statement: "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main'")
+    }
+    
+    @objc public func exportToParquet(_ database: String, tableName: String, filePath: String) -> [String: Any] {
+        let sql = "COPY \(tableName) TO '\(filePath)' (FORMAT PARQUET)"
+        
         return queue.sync {
             guard let conn = connections[database] else {
                 return ["error": "Database not open: \(database)"]
             }
             
-            var result = duckdb_result()
-            let queryResult = duckdb_query(conn, "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' AND table_type = 'BASE TABLE'", &result)
+            var errorPtr: UnsafeMutablePointer<CChar>? = nil
+            var rowsChanged: Int64 = 0
             
-            defer {
-                duckdb_destroy_result(&result)
-            }
+            let success = duckdb_ios_execute(conn, sql, &rowsChanged, &errorPtr)
             
-            if queryResult != DuckDBSuccess {
-                let errorPtr = duckdb_result_error(&result)
-                let errorMsg = errorPtr != nil ? String(cString: errorPtr!) : "Unknown error"
+            if !success {
+                let errorMsg: String
+                if let errPtr = errorPtr {
+                    errorMsg = String(cString: errPtr)
+                    duckdb_ios_free_string(errPtr)
+                } else {
+                    errorMsg = "Unknown export error"
+                }
                 return ["error": errorMsg]
             }
             
-            var tables: [String] = []
-            let rowCount = duckdb_row_count(&result)
-            
-            for row in 0..<rowCount {
-                let value = duckdb_value_varchar(&result, 0, row)
-                if let value = value {
-                    tables.append(String(cString: value))
-                    duckdb_free(UnsafeMutableRawPointer(mutating: value))
-                }
+            // Get file size and row count
+            var fileSize: Int64 = 0
+            if let attrs = try? FileManager.default.attributesOfItem(atPath: filePath) {
+                fileSize = attrs[.size] as? Int64 ?? 0
             }
             
-            return ["tables": tables]
+            // Get row count from table
+            let countResult = query(database, statement: "SELECT COUNT(*) as cnt FROM \(tableName)")
+            var rowCount: Int64 = 0
+            if let values = countResult["values"] as? [[String: Any]],
+               let first = values.first,
+               let cnt = first["cnt"] as? Int64 {
+                rowCount = cnt
+            }
+            
+            return [
+                "tableName": tableName,
+                "tempFilePath": filePath,
+                "rowCount": rowCount
+            ]
         }
     }
     
+    /// Export table to Parquet file in temp directory
+    /// This is used by the plugin to first export to temp, then move to user-selected directory
     @objc public func exportToParquetTemp(_ database: String, tableName: String, compression: String) -> [String: Any] {
+        // Create temp file path
+        let tempDir = FileManager.default.temporaryDirectory
+        let tempFileName = "\(tableName)_\(UUID().uuidString).parquet"
+        let tempFilePath = tempDir.appendingPathComponent(tempFileName).path
+        
+        // Build SQL with compression
+        let sql = "COPY \(tableName) TO '\(tempFilePath)' (FORMAT PARQUET, COMPRESSION '\(compression)')"
+        
         return queue.sync {
             guard let conn = connections[database] else {
                 return ["error": "Database not open: \(database)"]
             }
             
-            // Create temp file path
-            let tempDir = FileManager.default.temporaryDirectory
-            let tempFileName = "\(tableName)_\(UUID().uuidString).parquet"
-            let tempFilePath = tempDir.appendingPathComponent(tempFileName).path
+            var errorPtr: UnsafeMutablePointer<CChar>? = nil
+            var rowsChanged: Int64 = 0
             
-            // First get row count
-            var countResult = duckdb_result()
-            let countQuery = "SELECT COUNT(*) FROM \"\(tableName)\""
-            let countQueryResult = duckdb_query(conn, countQuery, &countResult)
+            let success = duckdb_ios_execute(conn, sql, &rowsChanged, &errorPtr)
             
-            var rowCount: Int64 = 0
-            if countQueryResult == DuckDBSuccess {
-                rowCount = duckdb_value_int64(&countResult, 0, 0)
-                duckdb_destroy_result(&countResult)
-            }
-            
-            // Export to parquet
-            let exportQuery = "COPY \"\(tableName)\" TO '\(tempFilePath)' (FORMAT PARQUET, COMPRESSION '\(compression)')"
-            
-            var result = duckdb_result()
-            let queryResult = duckdb_query(conn, exportQuery, &result)
-            
-            defer {
-                duckdb_destroy_result(&result)
-            }
-            
-            if queryResult != DuckDBSuccess {
-                let errorPtr = duckdb_result_error(&result)
-                let errorMsg = errorPtr != nil ? String(cString: errorPtr!) : "Unknown error"
+            if !success {
+                let errorMsg: String
+                if let errPtr = errorPtr {
+                    errorMsg = String(cString: errPtr)
+                    duckdb_ios_free_string(errPtr)
+                } else {
+                    errorMsg = "Unknown export error"
+                }
                 return ["error": errorMsg]
+            }
+            
+            // Get row count from table
+            var rowCount: Int64 = 0
+            
+            // Use a separate query execution to avoid deadlock
+            var countErrorPtr: UnsafeMutablePointer<CChar>? = nil
+            if let jsonResult = duckdb_ios_query(conn, "SELECT COUNT(*) as cnt FROM \(tableName)", &countErrorPtr) {
+                let jsonString = String(cString: jsonResult)
+                duckdb_ios_free_string(jsonResult)
+                
+                if let data = jsonString.data(using: .utf8),
+                   let values = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+                   let first = values.first {
+                    // Try different ways to extract count
+                    if let cnt = first["cnt"] as? Int64 {
+                        rowCount = cnt
+                    } else if let cnt = first["cnt"] as? Int {
+                        rowCount = Int64(cnt)
+                    } else if let cnt = first["cnt"] as? NSNumber {
+                        rowCount = cnt.int64Value
+                    }
+                }
+            }
+            if let errPtr = countErrorPtr {
+                duckdb_ios_free_string(errPtr)
             }
             
             return [
@@ -437,7 +532,7 @@ import CDuckDB
         
         // If database already exists, don't overwrite
         if FileManager.default.fileExists(atPath: destPath) {
-            print("[DuckDB] Database already exists at: \(destPath)")
+            print("[DuckDB iOS] Database already exists at: \(destPath)")
             return
         }
         
@@ -461,11 +556,11 @@ import CDuckDB
         
         // Find the first existing source path
         guard let sourcePath = searchPaths.compactMap({ $0 }).first else {
-            print("[DuckDB] No pre-built database in bundle for: \(database) (will create new)")
+            print("[DuckDB iOS] No pre-built database in bundle for: \(database) (will create new)")
             return
         }
         
-        print("[DuckDB] Copying database from bundle: \(sourcePath)")
+        print("[DuckDB iOS] Copying database from bundle: \(sourcePath)")
         
         do {
             try FileManager.default.copyItem(atPath: sourcePath, toPath: destPath)
@@ -473,173 +568,9 @@ import CDuckDB
             // Get file size for logging
             let attrs = try FileManager.default.attributesOfItem(atPath: destPath)
             let fileSize = attrs[.size] as? Int64 ?? 0
-            print("[DuckDB] Database copied successfully: \(fileSize) bytes")
+            print("[DuckDB iOS] Database copied successfully: \(fileSize) bytes")
         } catch {
-            print("[DuckDB] Failed to copy database: \(error.localizedDescription)")
-        }
-    }
-    
-    private func bindValue(stmt: duckdb_prepared_statement, index: idx_t, value: Any) -> duckdb_state {
-        if value is NSNull {
-            return duckdb_bind_null(stmt, index)
-        } else if let intValue = value as? Int {
-            return duckdb_bind_int64(stmt, index, Int64(intValue))
-        } else if let int64Value = value as? Int64 {
-            return duckdb_bind_int64(stmt, index, int64Value)
-        } else if let doubleValue = value as? Double {
-            return duckdb_bind_double(stmt, index, doubleValue)
-        } else if let floatValue = value as? Float {
-            return duckdb_bind_double(stmt, index, Double(floatValue))
-        } else if let boolValue = value as? Bool {
-            return duckdb_bind_boolean(stmt, index, boolValue)
-        } else if let stringValue = value as? String {
-            return duckdb_bind_varchar(stmt, index, stringValue)
-        } else {
-            // Convert to string as fallback
-            return duckdb_bind_varchar(stmt, index, String(describing: value))
-        }
-    }
-    
-    private func resultToArray(_ result: inout duckdb_result) -> [[String: Any]] {
-        var rows: [[String: Any]] = []
-        
-        let columnCount = duckdb_column_count(&result)
-        let rowCount = duckdb_row_count(&result)
-        
-        // Get column names
-        var columnNames: [String] = []
-        for col in 0..<columnCount {
-            let name = duckdb_column_name(&result, col)
-            columnNames.append(name != nil ? String(cString: name!) : "column_\(col)")
-        }
-        
-        // Get column types
-        var columnTypes: [duckdb_type] = []
-        for col in 0..<columnCount {
-            columnTypes.append(duckdb_column_type(&result, col))
-        }
-        
-        // Extract rows
-        for row in 0..<rowCount {
-            var rowDict: [String: Any] = [:]
-            
-            for col in 0..<columnCount {
-                let columnName = columnNames[Int(col)]
-                
-                // Check for NULL
-                if duckdb_value_is_null(&result, col, row) {
-                    rowDict[columnName] = NSNull()
-                    continue
-                }
-                
-                let type = columnTypes[Int(col)]
-                let value = extractValue(result: &result, column: col, row: row, type: type)
-                rowDict[columnName] = value
-            }
-            
-            rows.append(rowDict)
-        }
-        
-        return rows
-    }
-    
-    private func extractValue(result: inout duckdb_result, column: idx_t, row: idx_t, type: duckdb_type) -> Any {
-        switch type {
-        case DUCKDB_TYPE_BOOLEAN:
-            return duckdb_value_boolean(&result, column, row)
-            
-        case DUCKDB_TYPE_TINYINT:
-            return Int(duckdb_value_int8(&result, column, row))
-            
-        case DUCKDB_TYPE_SMALLINT:
-            return Int(duckdb_value_int16(&result, column, row))
-            
-        case DUCKDB_TYPE_INTEGER:
-            return Int(duckdb_value_int32(&result, column, row))
-            
-        case DUCKDB_TYPE_BIGINT:
-            return duckdb_value_int64(&result, column, row)
-            
-        case DUCKDB_TYPE_UTINYINT:
-            return Int(duckdb_value_uint8(&result, column, row))
-            
-        case DUCKDB_TYPE_USMALLINT:
-            return Int(duckdb_value_uint16(&result, column, row))
-            
-        case DUCKDB_TYPE_UINTEGER:
-            return UInt32(duckdb_value_uint32(&result, column, row))
-            
-        case DUCKDB_TYPE_UBIGINT:
-            return duckdb_value_uint64(&result, column, row)
-            
-        case DUCKDB_TYPE_FLOAT:
-            return duckdb_value_float(&result, column, row)
-            
-        case DUCKDB_TYPE_DOUBLE:
-            return duckdb_value_double(&result, column, row)
-            
-        case DUCKDB_TYPE_VARCHAR:
-            let value = duckdb_value_varchar(&result, column, row)
-            if let value = value {
-                let str = String(cString: value)
-                duckdb_free(UnsafeMutableRawPointer(mutating: value))
-                return str
-            }
-            return ""
-            
-        case DUCKDB_TYPE_BLOB:
-            let blob = duckdb_value_blob(&result, column, row)
-            if blob.data != nil && blob.size > 0 {
-                return Data(bytes: blob.data, count: Int(blob.size))
-            }
-            return Data()
-            
-        case DUCKDB_TYPE_TIMESTAMP, DUCKDB_TYPE_TIMESTAMP_S, DUCKDB_TYPE_TIMESTAMP_MS, DUCKDB_TYPE_TIMESTAMP_NS:
-            // Return as ISO string
-            let value = duckdb_value_varchar(&result, column, row)
-            if let value = value {
-                let str = String(cString: value)
-                duckdb_free(UnsafeMutableRawPointer(mutating: value))
-                return str
-            }
-            return ""
-            
-        case DUCKDB_TYPE_DATE:
-            let value = duckdb_value_varchar(&result, column, row)
-            if let value = value {
-                let str = String(cString: value)
-                duckdb_free(UnsafeMutableRawPointer(mutating: value))
-                return str
-            }
-            return ""
-            
-        case DUCKDB_TYPE_TIME:
-            let value = duckdb_value_varchar(&result, column, row)
-            if let value = value {
-                let str = String(cString: value)
-                duckdb_free(UnsafeMutableRawPointer(mutating: value))
-                return str
-            }
-            return ""
-            
-        case DUCKDB_TYPE_INTERVAL:
-            let value = duckdb_value_varchar(&result, column, row)
-            if let value = value {
-                let str = String(cString: value)
-                duckdb_free(UnsafeMutableRawPointer(mutating: value))
-                return str
-            }
-            return ""
-            
-        default:
-            // For complex types (LIST, STRUCT, MAP, etc.), convert to string
-            let value = duckdb_value_varchar(&result, column, row)
-            if let value = value {
-                let str = String(cString: value)
-                duckdb_free(UnsafeMutableRawPointer(mutating: value))
-                return str
-            }
-            return ""
+            print("[DuckDB iOS] Failed to copy database: \(error.localizedDescription)")
         }
     }
 }

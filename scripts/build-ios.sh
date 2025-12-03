@@ -668,22 +668,51 @@ create_xcframework() {
     find "$xcframework_path" -type f | head -20
 }
 
-# Copy DuckDB headers
+# Copy DuckDB headers (both C and C++)
 copy_headers() {
     local source_dir=$1
+    local spatial_dir="${PROJECT_ROOT}/build/spatial/duckdb-spatial"
     
     log_info "Copying DuckDB headers..."
     
     mkdir -p "$HEADER_DIR"
+    mkdir -p "$HEADER_DIR/duckdb"
+    mkdir -p "$HEADER_DIR/spatial"
     
     # Copy the main C header
     if [ -f "$source_dir/src/include/duckdb.h" ]; then
         cp "$source_dir/src/include/duckdb.h" "$HEADER_DIR/"
-        log_info "Header copied to $HEADER_DIR/duckdb.h"
+        log_info "C header copied to $HEADER_DIR/duckdb.h"
     else
         log_error "duckdb.h not found in $source_dir/src/include/"
         exit 1
     fi
+    
+    # Copy C++ headers for the iOS C++ wrapper
+    # This enables LoadStaticExtension<SpatialExtension>() to work
+    log_info "Copying C++ headers for static extension support..."
+    
+    # Copy main duckdb.hpp and its dependencies
+    if [ -d "$source_dir/src/include/duckdb" ]; then
+        cp -R "$source_dir/src/include/duckdb" "$HEADER_DIR/"
+        log_info "C++ headers copied to $HEADER_DIR/duckdb/"
+    fi
+    
+    # Copy duckdb.hpp main include
+    if [ -f "$source_dir/src/include/duckdb.hpp" ]; then
+        cp "$source_dir/src/include/duckdb.hpp" "$HEADER_DIR/"
+        log_info "duckdb.hpp copied"
+    fi
+    
+    # Copy spatial extension header
+    if [ -f "$spatial_dir/src/spatial/spatial_extension.hpp" ]; then
+        cp "$spatial_dir/src/spatial/spatial_extension.hpp" "$HEADER_DIR/spatial/"
+        log_info "spatial_extension.hpp copied"
+    else
+        log_warn "spatial_extension.hpp not found - spatial extension may not compile"
+    fi
+    
+    log_info "All headers copied successfully"
 }
 
 # Build the plugin and example app
@@ -899,6 +928,10 @@ while [[ $# -gt 0 ]]; do
         --extensions)
             DUCKDB_EXTENSIONS="$2"
             shift 2
+            ;;
+        --spatial)
+            BUILD_SPATIAL=true
+            shift
             ;;
         --no-spatial)
             BUILD_SPATIAL=false

@@ -203,16 +203,16 @@ export async function createSpatialTables(): Promise<void> {
   
   // Cities table
   await duckdb.execute(SPATIAL_DB, `
-    CREATE TABLE IF NOT EXISTS ne_cities (
+    CREATE TABLE IF NOT EXISTS ne_populated_places (
       id INTEGER PRIMARY KEY,
-      name VARCHAR NOT NULL,
-      country VARCHAR,
-      admin1 VARCHAR,
-      latitude DOUBLE,
-      longitude DOUBLE,
-      population BIGINT,
-      rank INTEGER,
-      timezone VARCHAR,
+      NAME VARCHAR NOT NULL,
+      ADM0NAME VARCHAR,
+      ADM1NAME VARCHAR,
+      LATITUDE DOUBLE,
+      LONGITUDE DOUBLE,
+      POP_MAX BIGINT,
+      LABELRANK INTEGER,
+      TIMEZONE VARCHAR,
       geometry GEOMETRY
     );
   `);
@@ -402,7 +402,7 @@ export async function getSpatialStats(): Promise<SpatialStats> {
     `SELECT 
       (SELECT COUNT(*) FROM user_drawings) as user_drawings,
       (SELECT COUNT(*) FROM ne_countries) as countries,
-      (SELECT COUNT(*) FROM ne_cities) as cities,
+      (SELECT COUNT(*) FROM ne_populated_places) as cities,
       (SELECT COUNT(*) FROM ne_airports) as airports,
       (SELECT COUNT(*) FROM ne_rivers) as rivers,
       (SELECT COUNT(*) FROM ne_lakes) as lakes;`
@@ -592,9 +592,9 @@ const LAYER_CONFIGS: Record<LayerName, LayerConfig> = {
     propertyColumns: ['name', 'name_long', 'iso_a3', 'iso_a2', 'continent', 'subregion', 'pop_est', 'gdp_md'],
   },
   cities: {
-    table: 'ne_cities',
+    table: 'ne_populated_places',
     idColumn: 'id',
-    propertyColumns: ['name', 'country', 'admin1', 'latitude', 'longitude', 'population', 'rank', 'timezone'],
+    propertyColumns: ['NAME', 'ADM0NAME', 'ADM1NAME', 'LATITUDE', 'LONGITUDE', 'POP_MAX', 'LABELRANK', 'TIMEZONE'],
   },
   airports: {
     table: 'ne_airports',
@@ -654,8 +654,12 @@ export async function getLayerGeoJSON(layer: LayerName, options?: LayerQueryOpti
     // to avoid relying on spatial functions that may not be available
     if (layer === 'cities' || layer === 'airports') {
       // These tables have explicit latitude/longitude columns - use those directly
+      // Note: ne_populated_places uses LATITUDE/LONGITUDE, ne_airports uses ... check schema
+      const latCol = layer === 'cities' ? 'LATITUDE' : 'latitude'; // ne_populated_places has uppercase
+      const lonCol = layer === 'cities' ? 'LONGITUDE' : 'longitude';
+      
       where.push(
-        `longitude >= ${addParam(minLon)} AND longitude <= ${addParam(maxLon)} AND latitude >= ${addParam(minLat)} AND latitude <= ${addParam(maxLat)}`
+        `${lonCol} >= ${addParam(minLon)} AND ${lonCol} <= ${addParam(maxLon)} AND ${latCol} >= ${addParam(minLat)} AND ${latCol} <= ${addParam(maxLat)}`
       );
     }
     // For countries, rivers, lakes - skip bbox filter since:

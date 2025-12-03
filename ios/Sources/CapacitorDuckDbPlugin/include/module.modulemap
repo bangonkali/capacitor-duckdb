@@ -1,5 +1,16 @@
+// DuckDB C API (legacy, kept for reference)
 module CDuckDB [system] {
     header "duckdb.h"
     export *
     link "duckdb_merged"
+}
+
+// DuckDB iOS C++ wrapper with static extension support
+// This module provides a C-linkage API that internally uses C++ to
+// properly load statically linked extensions like spatial
+module DuckDBiOS {
+    header "../duckdb_ios.hpp"
+    export *
+    link "duckdb_merged"
+    link "c++"
 }
