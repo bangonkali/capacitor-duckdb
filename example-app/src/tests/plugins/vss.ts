@@ -66,7 +66,7 @@ export const registerVSSTests = () => {
         testFn: async () => {
             const result = await CapacitorDuckDb.query({
                 database: DB_NAME,
-                statement: 'SELECT array_cosine_similarity([1, 0]::FLOAT[], [1, 0]::FLOAT[]) as val'
+                statement: 'SELECT array_cosine_similarity([1, 0]::FLOAT[2], [1, 0]::FLOAT[2]) as val'
             });
             assertEqual(result.values[0].val, 1.0, 'Cosine similarity of identical vectors should be 1');
         }
