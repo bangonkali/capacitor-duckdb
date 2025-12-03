@@ -64,7 +64,7 @@ workflows:
             #!/bin/bash
             set -e
             echo "Installing Ninja and CMake..."
-            brew install ninja cmake
+            sudo apt-get update && sudo apt-get install -y ninja-build cmake
 
             echo "Installing vcpkg..."
             git clone https://github.com/Microsoft/vcpkg.git $HOME/vcpkg
@@ -118,12 +118,12 @@ workflows:
             echo "Restoring iOS binaries from $IOS_FRAMEWORK_ZIP_PATH..."
             # Ensure destination exists
             mkdir -p ios/Frameworks
-            unzip -q "$IOS_FRAMEWORK_ZIP_PATH" -d ios/Frameworks
+            unzip -qo "$IOS_FRAMEWORK_ZIP_PATH" -d ios/Frameworks
 
             echo "Restoring Android binaries from $ANDROID_LIBS_ZIP_PATH..."
             # Ensure destination exists
             mkdir -p android/src/main/jniLibs
-            unzip -q "$ANDROID_LIBS_ZIP_PATH" -d android/src/main/jniLibs
+            unzip -qo "$ANDROID_LIBS_ZIP_PATH" -d android/src/main/jniLibs
     - script:
         title: Authenticate with NPM
         inputs:
