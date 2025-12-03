@@ -11,6 +11,7 @@ Capacitor plugin wrapping DuckDB for Android/iOS. Native libraries built from so
 | Extension | Type | Description |
 |-----------|------|-------------|
 | **vss** | Out-of-tree | Vector Similarity Search (HNSW indexes, vss_join, vss_match) |
+| **duckpgq** | Out-of-tree | Graph Property Graph Queries (SQL/PGQ) |
 | **spatial** | Out-of-tree | GIS/geometry (ST_Point, ST_Distance, GDAL/GEOS/PROJ) |
 | **icu** | In-tree | Unicode support |
 | **json** | In-tree | JSON parsing |
