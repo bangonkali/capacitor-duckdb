@@ -9,7 +9,7 @@ import {
   IonTabs,
 } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
-import { checkboxOutline, analyticsOutline, terminalOutline, globeOutline, flaskOutline, settingsOutline } from 'ionicons/icons';
+import { globeOutline, flaskOutline, settingsOutline } from 'ionicons/icons';
 
 import TodoTab from './pages/TodoTab';
 import TaxiTab from './pages/TaxiTab';
@@ -17,6 +17,7 @@ import QueryTab from './pages/QueryTab';
 import SpatialTab from './pages/SpatialTab';
 import TestTab from './pages/TestTab';
 import SettingsTab from './pages/SettingsTab';
+import DemosTab from './pages/DemosTab';
 
 // Spatial demo pages
 import ConstructorsDemo from './pages/spatial/ConstructorsDemo';
@@ -35,6 +36,9 @@ const App: React.FC = () => {
         <IonTabs>
           <IonRouterOutlet>
             {/* Main tabs */}
+            <Route exact path="/demos">
+              <DemosTab />
+            </Route>
             <Route exact path="/spatial">
               <SpatialTab />
             </Route>
@@ -53,7 +57,7 @@ const App: React.FC = () => {
             <Route exact path="/settings">
               <SettingsTab />
             </Route>
-            
+
             {/* Spatial demo pages */}
             <Route exact path="/spatial/constructors">
               <ConstructorsDemo />
@@ -79,29 +83,17 @@ const App: React.FC = () => {
             <Route exact path="/spatial/io">
               <IODemo />
             </Route>
-            
-            {/* Default route - Spatial demo is the showcase */}
+
+            {/* Default route - Demos is the showcase */}
             <Route exact path="/">
-              <Redirect to="/spatial" />
+              <Redirect to="/demos" />
             </Route>
           </IonRouterOutlet>
 
           <IonTabBar slot="bottom">
-            <IonTabButton tab="spatial" href="/spatial">
+            <IonTabButton tab="demos" href="/demos">
               <IonIcon icon={globeOutline} />
-              <IonLabel>Spatial</IonLabel>
-            </IonTabButton>
-            <IonTabButton tab="taxi" href="/taxi">
-              <IonIcon icon={analyticsOutline} />
-              <IonLabel>NYC Taxi</IonLabel>
-            </IonTabButton>
-            <IonTabButton tab="todo" href="/todo">
-              <IonIcon icon={checkboxOutline} />
-              <IonLabel>Todo</IonLabel>
-            </IonTabButton>
-            <IonTabButton tab="query" href="/query">
-              <IonIcon icon={terminalOutline} />
-              <IonLabel>SQL</IonLabel>
+              <IonLabel>Demos</IonLabel>
             </IonTabButton>
             <IonTabButton tab="test" href="/test">
               <IonIcon icon={flaskOutline} />
