@@ -206,7 +206,7 @@ export const registerSpatialTests = () => {
             const row = result.values[0];
             assertEqual(row.buffer_type, 'POLYGON', 'Buffer Type');
             assertEqual(row.centroid, 'POINT (5 5)', 'Centroid');
-            assert(row.boundary.startsWith('POLYGON'), 'Boundary');
+            assert(row.boundary.startsWith('LINESTRING'), 'Boundary');
             assert(row.convex_hull.startsWith('POLYGON'), 'Convex Hull');
             assert(row.envelope.startsWith('POLYGON'), 'Envelope');
             assert(row.intersection.startsWith('POLYGON'), 'Intersection');
