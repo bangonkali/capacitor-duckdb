@@ -78,8 +78,14 @@ workflows:
             echo "Packing NPM package..."
             npm pack
             
+            # Find the generated tarball
+            PKG_FILE=$(ls *.tgz | head -n 1)
+            
             # Move the tarball to the deploy directory
-            mv *.tgz $BITRISE_DEPLOY_DIR/
+            mv "$PKG_FILE" "$BITRISE_DEPLOY_DIR/"
+            
+            # Expose the full path for the next step
+            envman add --key RELEASE_ARCHIVE_PATH --value "$BITRISE_DEPLOY_DIR/$PKG_FILE"
 
             # Zip Android binaries to preserve structure and avoid name collisions
             cd android/src/main/jniLibs
@@ -95,7 +101,7 @@ workflows:
         - body: "Automated release from Bitrise build $BITRISE_BUILD_NUMBER"
         - draft: "no"
         - files_to_upload: |-
-            $BITRISE_DEPLOY_DIR/*.tgz
+            $RELEASE_ARCHIVE_PATH
             $BITRISE_DEPLOY_DIR/android-libs.zip
             ios/Sources/CapacitorDuckDbPlugin/libduckdb.a
     - script@1:
