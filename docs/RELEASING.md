@@ -7,11 +7,11 @@ This project uses an automated Bitrise **graph** pipeline to distribute native b
 1.  **Trigger**: Pushing a new tag that matches `v*` kicks off the Bitrise `build-publish` pipeline.
 2.  **`build-ios-binaries` workflow**
     *   Installs Ninja, CMake, and vcpkg.
-    *   Runs `./scripts/build-ios.sh --spatial` to build `DuckDB.xcframework` with spatial + VSS enabled.
+    *   Runs `./scripts/build-ios.sh` to build `DuckDB.xcframework` with all extensions (spatial, vss, icu, json, parquet, inet, tpch, tpcds).
     *   Archives the framework as `DuckDB.xcframework.zip` and advertises it to downstream workflows via the intermediate file key `IOS_FRAMEWORK_ZIP_PATH`.
 3.  **`build-android-binaries` workflow**
     *   Installs the same toolchain as the iOS workflow.
-    *   Runs `./scripts/build-android.sh --spatial` with `DUCKDB_EXTENSIONS="icu;json;parquet;inet;tpch;tpcds;vss"`.
+    *   Runs `./scripts/build-android.sh` which builds all extensions monolithically.
     *   Archives the ABI folders under `android/src/main/jniLibs` into `android-libs.zip` and exposes it as the intermediate file `ANDROID_LIBS_ZIP_PATH`.
 4.  **`build-npm-package` workflow** (depends on both build workflows)
     *   Pulls intermediate files so the restored binaries land in `ios/Frameworks` and `android/src/main/jniLibs`.

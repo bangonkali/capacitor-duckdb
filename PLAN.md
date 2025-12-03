@@ -260,63 +260,68 @@ capacitor-duckdb/
 
 ## Notes on Extensions
 
+### Monolithic Build Approach
+
+This project builds **monolithic** DuckDB binaries with **all extensions statically linked**:
+
+- **spatial** - GIS/geometry functions (ST_Point, ST_Distance, ST_Buffer, etc.)
+- **vss** - Vector Similarity Search (HNSW indexes, vss_join, vss_match)
+- **icu** - International Components for Unicode
+- **json** - JSON parsing and generation
+- **parquet** - Parquet file format support
+- **inet** - IP address functions
+- **tpch** - TPC-H benchmark queries
+- **tpcds** - TPC-DS benchmark queries
+
+**Why monolithic?** Mobile platforms (Android/iOS) discourage dynamic library loading. All functionality is available offline immediately after app install.
+
+```bash
+# Build everything (all extensions included by default)
+./scripts/build-android.sh
+./scripts/build-ios.sh
+```
+
 ### In-Tree vs Out-of-Tree Extensions
 
 DuckDB has two types of extensions:
 
-1. **In-tree extensions** - Live in DuckDB's `extension/` folder, can be enabled via `DUCKDB_EXTENSIONS`
-2. **Out-of-tree extensions** - Live in separate repos, require special handling
+1. **In-tree extensions** - Live in DuckDB's `extension/` folder (icu, json, parquet, inet, tpch, tpcds)
+2. **Out-of-tree extensions** - Live in separate repos (spatial, vss)
 
-To build with **in-tree** extensions, set `DUCKDB_EXTENSIONS`:
-```bash
-# These are IN-TREE and work with DUCKDB_EXTENSIONS variable
-DUCKDB_EXTENSIONS="icu;json;parquet;inet;tpch;tpcds;vss" ./scripts/build-android.sh
-```
+The build scripts handle both types automatically.
 
-### Why `DUCKDB_EXTENSIONS="spatial"` Doesn't Work
-
-The spatial extension is an **out-of-tree extension** that:
-1. Lives in a separate repo (`github.com/duckdb/duckdb-spatial`)
-2. Requires vcpkg dependencies (GDAL, GEOS, PROJ) that must be cross-compiled
-3. Is currently commented out in DuckDB's CI due to ongoing geometry refactor
-
-Therefore, use `--spatial` flag instead:
-```bash
-./scripts/build-android.sh --spatial
-```
-
-### Android-Compatible In-Tree Extensions
+### Included Extensions
 
 | Extension | Description | Status |
 |-----------|-------------|--------|
-| `icu` | Unicode support, date/time formatting | ✅ Works |
-| `json` | JSON parsing and generation | ✅ Works |
-| `parquet` | Parquet file format | ✅ Works |
-| `inet` | Network address types | ✅ Works |
-| `tpch` | TPC-H benchmark generator | ✅ Works |
-| `tpcds` | TPC-DS benchmark generator | ✅ Works |
-| `vss` | Vector similarity search | ✅ Works (API 28+) |
+| `spatial` | GIS/geometry functions | ✅ Always included |
+| `vss` | Vector similarity search | ✅ Always included |
+| `icu` | Unicode support, date/time formatting | ✅ Always included |
+| `json` | JSON parsing and generation | ✅ Always included |
+| `parquet` | Parquet file format | ✅ Always included |
+| `inet` | Network address types | ✅ Always included |
+| `tpch` | TPC-H benchmark generator | ✅ Always included |
+| `tpcds` | TPC-DS benchmark generator | ✅ Always included |
 
-### Out-of-Tree Extensions (require special handling)
+### Not Included (N/A for mobile)
 
-| Extension | Reason | Solution |
-|-----------|--------|----------|
-| `spatial` | Out-of-tree, requires GDAL/GEOS/PROJ | **✅ Use `--spatial` flag** |
-| `azure` | Requires Azure SDK C++ (vcpkg) | N/A for mobile |
-| `aws` | Requires AWS SDK C++ | N/A for mobile |
-| `postgres` | Requires libpq | N/A for mobile |
-| `mysql` | Requires MySQL client library | N/A for mobile |
-| `sqlite` | Requires SQLite library | N/A for mobile |
-| `excel` | Requires EXPAT library | N/A for mobile |
-| `fts` | Requires Snowball stemmer library | N/A for mobile |
+| Extension | Reason |
+|-----------|--------|
+| `azure` | Requires Azure SDK C++ |
+| `aws` | Requires AWS SDK C++ |
+| `postgres` | Requires libpq |
+| `mysql` | Requires MySQL client library |
+| `sqlite` | Requires SQLite library |
+| `excel` | Requires EXPAT library |
+| `fts` | Requires Snowball stemmer library |
 
-### Spatial Extension for Android 🌍
+### Spatial Extension Details 🌍
 
-The spatial extension CAN be built for Android using vcpkg to cross-compile GDAL, GEOS, and PROJ:
+The spatial extension is built using vcpkg to cross-compile GDAL, GEOS, and PROJ:
 
 ```bash
-# Build DuckDB with spatial extension for Android
-./scripts/build-android.sh --spatial
+# Build DuckDB with all extensions (including spatial)
+./scripts/build-android.sh
 ```
 
 **Requirements:**
@@ -388,8 +393,8 @@ The example app includes a comprehensive spatial demo that showcases all major D
 ### Running the Spatial Demo
 
 ```bash
-# 1. Build DuckDB with spatial extension
-DUCKDB_EXTENSIONS="icu;json;parquet" ./scripts/build-android.sh --spatial
+# 1. Build DuckDB (all extensions included by default)
+./scripts/build-android.sh
 
 # 2. Install example app dependencies
 cd example-app

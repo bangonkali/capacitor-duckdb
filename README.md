@@ -192,8 +192,8 @@ The example app includes a comprehensive **Spatial Demo** that showcases all maj
 #### Running the Spatial Demo
 
 ```bash
-# 1. Build DuckDB with spatial extension
-DUCKDB_EXTENSIONS="icu;json;parquet;inet;tpch;tpcds;vss" ./scripts/build-android.sh --spatial
+# 1. Build DuckDB (all extensions are included by default)
+./scripts/build-android.sh
 
 # 2. Install example app dependencies
 cd example-app
@@ -619,7 +619,9 @@ Options for listing tables
 
 Construct a type with a set of properties K of type T
 
-<code>{ [P in K]: T; }</code>
+<code>{
+ [P in K]: T;
+ }</code>
 
 </docgen-api>
 

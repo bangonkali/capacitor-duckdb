@@ -710,7 +710,7 @@ export async function initializeSpatialDemo(
   const version = await checkSpatialExtension();
   
   if (!version.loaded) {
-    throw new Error('Spatial extension is not available. Please rebuild DuckDB with --spatial flag.');
+    throw new Error('Spatial extension is not available. Please rebuild DuckDB using the build scripts.');
   }
   
   progress('Verifying pre-populated data...', 20);
