@@ -22,7 +22,6 @@ Build a Capacitor plugin using JNI to wrap DuckDB's C++ API for Android, with:
 - ✅ Prepared statements with proper parameter binding
 - ✅ Export to Parquet with directory picker
 - ✅ Integration test suite in example app
-- ✅ GitHub Actions CI/CD workflow
 
 ## Architecture
 
@@ -87,29 +86,20 @@ Write implementation plan for reference.
 - Copy DuckDB headers to `android/src/main/cpp/include/`
 - Support `DUCKDB_EXTENSIONS` variable for custom extensions
 
-### 3. Create GitHub Actions workflow ✅
-**File:** `.github/workflows/build-android.yml`
-- Run on push/PR to main
-- Uses macOS runner for consistent builds
-- Supports spatial extension with vcpkg
-- Caches vcpkg dependencies for faster builds
-- Builds TypeScript and example app
-- Uploads APK and AAB artifacts
-
-### 4. Update android/build.gradle ✅
+### 3. Update android/build.gradle ✅
 - Add `externalNativeBuild.cmake` block
 - Set `ndk.abiFilters` for arm64-v8a, x86_64
 - Configure `jniLibs.srcDirs`
 - Set C++ standard to c++17
 
-### 5. Create CMakeLists.txt ✅
+### 4. Create CMakeLists.txt ✅
 **File:** `android/src/main/cpp/CMakeLists.txt`
 - Define `capacitor_duckdb_jni` shared library
 - Link against prebuilt `libduckdb.so`
 - Include DuckDB C headers
 - Link Android log library
 
-### 6. Implement JNI wrapper ✅
+### 5. Implement JNI wrapper ✅
 **File:** `android/src/main/cpp/duckdb_jni.cpp`
 - JNI functions: `openDatabase`, `closeDatabase`, `connect`, `disconnect`, `query`, `execute`
 - **Use DuckDB C++ API** (not C API) for database/connection management
@@ -151,26 +141,26 @@ auto result = wrapper->stmt->Execute(wrapper->bindings, false);
 - Use `duckdb::vector<duckdb::Value>` for bindings (not `std::vector`)
 - Use `Value::BIGINT()`, `Value::DOUBLE()`, `Value::BOOLEAN()` factory methods
 
-### 7. Create Java native bridge ✅
+### 6. Create Java native bridge ✅
 **File:** `android/src/main/java/ph/com/regalado/capacitor/duckdb/DuckDBNative.java`
 - Static block to load `capacitor_duckdb_jni` library
 - Native method declarations with `long` handles for pointers
 - Methods: `openDatabase`, `closeDatabase`, `connect`, `disconnect`, `query`, `execute`
 
-### 8. Implement CapacitorDuckDb.java ✅
+### 7. Implement CapacitorDuckDb.java ✅
 **File:** `android/src/main/java/ph/com/regalado/capacitor/duckdb/CapacitorDuckDb.java`
 - `Map<String, Long>` for database handles
 - `Map<String, Long>` for connection handles
 - Use `context.getFilesDir() + "/duckdb/"` for database path
 - Single connection per database (DuckDB supports multiple, but keeping simple for mobile)
 
-### 9. Update CapacitorDuckDbPlugin.java ✅
+### 8. Update CapacitorDuckDbPlugin.java ✅
 **File:** `android/src/main/java/ph/com/regalado/capacitor/duckdb/CapacitorDuckDbPlugin.java`
 - `@PluginMethod` for: `open`, `close`, `execute`, `query`, `getVersion`
 - Initialize implementation with context in `load()`
 - Parse JSON results to `JSObject`/`JSArray`
 
-### 10. Update TypeScript definitions ✅
+### 9. Update TypeScript definitions ✅
 **File:** `src/definitions.ts`
 ```typescript
 export interface CapacitorDuckDbPlugin {
@@ -183,11 +173,11 @@ export interface CapacitorDuckDbPlugin {
 }
 ```
 
-### 11. Update web.ts stub ✅
+### 10. Update web.ts stub ✅
 **File:** `src/web.ts`
 - Implement stub methods that throw "Not supported on web" errors
 
-### 12. Build todo example app ✅
+### 11. Build todo example app ✅
 **Files:** `example-app/src/pages/Tab1.tsx`, etc.
 - Ionic React todo list UI
 - CRUD operations using DuckDB:
@@ -197,7 +187,7 @@ export interface CapacitorDuckDbPlugin {
   - UPDATE todos SET completed
   - DELETE FROM todos
 
-### 13. Create Integration Test Tab ✅
+### 12. Create Integration Test Tab ✅
 **File:** `example-app/src/pages/TestTab.tsx`
 - Comprehensive test suite accessible via flask icon in bottom navigation
 - Tests all functionality from TypeScript through JNI layer:
@@ -210,7 +200,7 @@ export interface CapacitorDuckDbPlugin {
 - Visual pass/fail indicators with timing
 - Useful for verifying builds and debugging issues
 
-### 14. Update README.md ✅
+### 13. Update README.md ✅
 - Document `build-android.sh` usage
 - NDK requirements and setup
 - Environment variables (`ANDROID_NDK`, `DUCKDB_EXTENSIONS`)
@@ -233,9 +223,6 @@ capacitor-duckdb/
 ├── README.md
 ├── scripts/
 │   └── build-android.sh
-├── .github/
-│   └── workflows/
-│       └── build-android.yml
 ├── android/
 │   ├── build.gradle
 │   └── src/main/
