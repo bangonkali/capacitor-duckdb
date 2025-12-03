@@ -17,6 +17,7 @@ import {
     checkboxOutline,
     terminalOutline,
     chevronForwardOutline,
+    gitNetworkOutline,
 } from 'ionicons/icons';
 
 const DemosTab: React.FC = () => {
@@ -29,6 +30,15 @@ const DemosTab: React.FC = () => {
             </IonHeader>
             <IonContent fullscreen>
                 <IonList inset>
+                    <IonItem button routerLink="/duckpgq" detail={false}>
+                        <IonIcon slot="start" icon={gitNetworkOutline} color="tertiary" />
+                        <IonLabel>
+                            <h2>Graph Analysis</h2>
+                            <p>Fraud detection with DuckPGQ</p>
+                        </IonLabel>
+                        <IonIcon slot="end" icon={chevronForwardOutline} color="medium" />
+                    </IonItem>
+
                     <IonItem button routerLink="/spatial" detail={false}>
                         <IonIcon slot="start" icon={globeOutline} color="primary" />
                         <IonLabel>

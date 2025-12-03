@@ -18,6 +18,7 @@ import SpatialTab from './pages/SpatialTab';
 import TestTab from './pages/TestTab';
 import SettingsTab from './pages/SettingsTab';
 import DemosTab from './pages/DemosTab';
+import DuckPGQDemo from './pages/DuckPGQDemo';
 
 // Spatial demo pages
 import ConstructorsDemo from './pages/spatial/ConstructorsDemo';
@@ -38,6 +39,9 @@ const App: React.FC = () => {
             {/* Main tabs */}
             <Route exact path="/demos">
               <DemosTab />
+            </Route>
+            <Route exact path="/duckpgq">
+              <DuckPGQDemo />
             </Route>
             <Route exact path="/spatial">
               <SpatialTab />
