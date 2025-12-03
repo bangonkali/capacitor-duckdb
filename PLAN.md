@@ -14,8 +14,10 @@ Build a Capacitor plugin using JNI to wrap DuckDB's C++ API for Android, with:
 
 **All core functionality is implemented and working:**
 - ✅ DuckDB native library builds for Android (arm64-v8a, x86_64)
+- ✅ DuckDB native library builds for iOS (arm64, x86_64 simulator)
 - ✅ Spatial extension builds with vcpkg dependencies (GDAL, GEOS, PROJ)
-- ✅ JNI bridge using DuckDB C++ API
+- ✅ JNI bridge using DuckDB C++ API (Android)
+- ✅ C++ Wrapper using DuckDB C++ API (iOS)
 - ✅ Static extension loading (`LoadStaticExtension<SpatialExtension>()`)
 - ✅ Prepared statements with proper parameter binding
 - ✅ Export to Parquet with directory picker
@@ -438,12 +440,12 @@ import countriesData from './geojson/countries.geojson';
 ## Future Work
 
 ### iOS Support 🍎
-iOS support is planned but not yet implemented:
-- [ ] Create `ios/Sources/CapacitorDuckDbPlugin/` Swift implementation
-- [ ] Build DuckDB for iOS arm64 using CMake
-- [ ] Create Swift JNI-equivalent native bridge
-- [ ] Support static extension loading for spatial
-- [ ] Test on iOS Simulator and physical devices
+iOS support is now implemented! ✅
+- [x] Create `ios/Sources/CapacitorDuckDbPlugin/` Swift implementation
+- [x] Build DuckDB for iOS arm64 using CMake
+- [x] Create Swift JNI-equivalent native bridge
+- [x] Support static extension loading for spatial
+- [x] Test on iOS Simulator and physical devices
 
 ### Additional Features
 - [ ] Transaction support (BEGIN, COMMIT, ROLLBACK)
