@@ -63,8 +63,8 @@ workflows:
         - content: |
             #!/bin/bash
             set -e
-            echo "Installing Ninja and CMake..."
-            sudo apt-get update && sudo apt-get install -y ninja-build cmake
+            echo "Installing Ninja, CMake, and pkg-config..."
+            sudo apt-get update && sudo apt-get install -y ninja-build cmake pkg-config
 
             echo "Installing vcpkg..."
             git clone https://github.com/Microsoft/vcpkg.git $HOME/vcpkg
