@@ -71,3 +71,9 @@ captures
 
 # External native build folder generated in Android Studio 2.2 and later
 .externalNativeBuild
+
+# iOS DuckDB generated headers
+ios/Sources/CapacitorDuckDbPlugin/include/duckdb.h
+ios/Sources/CapacitorDuckDbPlugin/include/duckdb.hpp
+ios/Sources/CapacitorDuckDbPlugin/include/duckdb/
+ios/Sources/CapacitorDuckDbPlugin/include/spatial/
