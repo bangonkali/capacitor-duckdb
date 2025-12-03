@@ -13,7 +13,8 @@
     "ios/Sources",
     "ios/Tests",
     "Package.swift",
-    "BangonkaliCapacitorDuckdb.podspec"
+    "BangonkaliCapacitorDuckdb.podspec",
+    "scripts/"
   ],
   "author": "bangonkali@gmail.com",
   "license": "MIT",
@@ -30,6 +31,7 @@
     "native"
   ],
   "scripts": {
+    "postinstall": "node scripts/install-binaries.js",
     "verify": "npm run verify:ios && npm run verify:android && npm run verify:web",
     "verify:ios": "xcodebuild -scheme BangonkaliCapacitorDuckdb -destination generic/platform=iOS",
     "verify:android": "cd android && ./gradlew clean build test && cd ..",
@@ -44,6 +46,9 @@
     "clean": "rimraf ./dist",
     "watch": "tsc --watch",
     "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.10"
   },
   "devDependencies": {
     "@capacitor/android": "^7.0.0",

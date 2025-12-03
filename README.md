@@ -39,6 +39,9 @@ npm install @bangonkali/capacitor-duckdb
 npx cap sync
 ```
 
+> **Note**: This package downloads platform-specific native binaries (~100MB) from GitHub Releases during installation. Ensure you have internet access and `unzip` installed.
+
+
 ## Usage
 
 ### Basic Example
