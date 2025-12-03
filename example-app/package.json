@@ -17,9 +17,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext ts,tsx",
-    "prepare-data": "node scripts/prepare-taxi-data.mjs",
-    "download-geodata": "node scripts/download-geodata.mjs",
-    "postinstall": "node scripts/download-geodata.mjs"
+    "prepare-data": "node scripts/prepare-taxi-data.mjs"
   },
   "dependencies": {
     "@bangonkali/capacitor-duckdb": "file:..",
