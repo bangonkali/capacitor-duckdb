@@ -366,7 +366,7 @@ const SpatialTab: React.FC = () => {
             </IonButton>
             <IonText color="medium">
               <p className="hint">
-                Make sure DuckDB was built with the <code>--spatial</code> flag.
+                Make sure DuckDB was built using the build scripts (spatial is included by default).
               </p>
             </IonText>
           </div>

@@ -8,16 +8,16 @@ If spatial functions like `ST_Point()` return errors:
 
 1.  **Verify build included spatial:**
     ```bash
-    # Check libduckdb.so size (should be 50-80MB with spatial)
+    # Check libduckdb.so size (should be 80-100MB with all extensions)
     ls -lh android/src/main/jniLibs/arm64-v8a/libduckdb.so
     
     # Check for spatial symbols
     nm -gC android/src/main/jniLibs/arm64-v8a/libduckdb.so | grep -i spatial
     ```
 
-2.  **Rebuild with spatial flag:**
+2.  **Rebuild (all extensions are included by default):**
     ```bash
-    DUCKDB_EXTENSIONS="icu;json;parquet" ./scripts/build-android.sh --spatial
+    ./scripts/build-android.sh
     ```
 
 ### Checking if Spatial Extension is Loaded
@@ -93,7 +93,7 @@ If vcpkg cross-compilation fails:
     ```bash
     rm -rf ~/vcpkg/buildtrees/*
     rm -rf build/spatial
-    ./scripts/build-android.sh --spatial
+    ./scripts/build-android.sh
     ```
 
 ### JNI Library Not Found (Android)

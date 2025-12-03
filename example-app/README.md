@@ -43,10 +43,10 @@ A demo Ionic React app showcasing the `@bangonkali/capacitor-duckdb` plugin with
 
 ### Prerequisites
 
-1. Build the main DuckDB plugin (with spatial extension) first:
+1. Build the main DuckDB plugin first:
    ```bash
    cd ..
-  DUCKDB_EXTENSIONS="icu;json;parquet" ./scripts/build-android.sh --spatial
+   ./scripts/build-android.sh
    npm run build
    ```
 

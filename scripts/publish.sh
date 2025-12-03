@@ -56,11 +56,11 @@ fi
 export BITRISE_GIT_TAG="$VERSION"
 
 # 1. Build Native Binaries
-echo "📦 Building Android binaries..."
-./scripts/build-android.sh --spatial
+echo "📦 Building Android binaries (monolithic with all extensions)..."
+./scripts/build-android.sh
 
-echo "📦 Building iOS binaries..."
-./scripts/build-ios.sh --spatial
+echo "📦 Building iOS binaries (monolithic with all extensions)..."
+./scripts/build-ios.sh
 
 # 2. Prepare NPM Package
 echo "📝 Updating package.json version..."
