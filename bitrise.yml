@@ -3,46 +3,7 @@ format_version: '23'
 default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
 project_type: ios
 workflows:
-  archive_and_export_app:
-    summary: Create an IPA file to install your app on a device or share it with
-      your team.
-    description: The workflow will first clone your Git repository, cache and
-      install your project's dependencies if any, export an IPA file from the
-      project and save it.
-    steps:
-    - git-clone@8:
-        inputs:
-        - fetch_tags: 'yes'
-    - xcode-archive@5:
-        inputs:
-        - project_path: "$BITRISE_PROJECT_PATH"
-        - scheme: "$BITRISE_SCHEME"
-        - distribution_method: "$BITRISE_DISTRIBUTION_METHOD"
-        - automatic_code_signing: api-key
-        - cache_level: none
-    - deploy-to-bitrise-io@2: {}
-  build:
-    summary: Build your Xcode project.
-    description: The workflow will first clone your Git repository, cache and
-      install your project's dependencies if any and build your project.
-    steps:
-    - git-clone@8:
-        inputs:
-        - fetch_tags: 'yes'
-    - restore-spm-cache@2: {}
-    - xcode-build-for-test@3:
-        inputs:
-        - project_path: "$BITRISE_PROJECT_PATH"
-        - scheme: "$BITRISE_SCHEME"
-        - destination: platform=iOS Simulator,name=iPhone 8 Plus,OS=latest
-        - cache_level: none
-    - save-spm-cache@1: {}
-    - deploy-to-bitrise-io@2: {}
-    triggers:
-      push:
-      - branch: main
-      pull_request:
-      - source_branch: "*"
+
   build_npm_package:
     summary: Build native binaries and create NPM package
     description: |
@@ -165,14 +126,3 @@ meta:
   bitrise.io:
     stack: osx-xcode-16.4.x
     machine_type_id: g2.mac.large
-app:
-  envs:
-  - BITRISE_PROJECT_PATH: example-app/ios/App/App.xcworkspace
-    opts:
-      is_expand: false
-  - BITRISE_SCHEME: App
-    opts:
-      is_expand: false
-  - BITRISE_DISTRIBUTION_METHOD: development
-    opts:
-      is_expand: false
