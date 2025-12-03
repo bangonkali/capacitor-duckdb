@@ -102,6 +102,10 @@ import DuckDBiOS
                 return "Failed to connect to database: \(errorMsg)"
             }
             
+            // Enable HNSW experimental persistence by default
+            var rowsChanged: Int64 = 0
+            _ = duckdb_ios_execute(conn, "SET hnsw_enable_experimental_persistence=true;", &rowsChanged, &errorPtr)
+            
             databases[database] = db
             connections[database] = conn
             

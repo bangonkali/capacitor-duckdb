@@ -142,6 +142,30 @@ get_vss_source() {
     fi
 }
 
+# Clone or update duckpgq-extension source
+get_duckpgq_source() {
+    local duckpgq_dir="${PROJECT_ROOT}/build/duckpgq/duckpgq-extension"
+    
+    log_step "Getting duckpgq-extension source..."
+    
+    mkdir -p "${PROJECT_ROOT}/build/duckpgq"
+    
+    if [ -d "$duckpgq_dir" ]; then
+        log_info "Using existing duckpgq-extension source..."
+        cd "$duckpgq_dir"
+        git fetch origin
+        git checkout v1.4-andium
+        git pull origin v1.4-andium
+    else
+        log_info "Cloning duckpgq-extension repository..."
+        git clone --recurse-submodules -b v1.4-andium https://github.com/cwida/duckpgq-extension "$duckpgq_dir"
+    fi
+    
+    # Initialize duckpgq's duckdb submodule (the fork)
+    cd "$duckpgq_dir"
+    git submodule update --init --recursive
+}
+
 # Create custom VSS extension config for static linking
 # The default DuckDB config for VSS uses DONT_LINK which prevents static linking
 create_vss_extension_config() {
@@ -164,6 +188,28 @@ duckdb_extension_load(vss
 EOF
     
     log_info "VSS extension config created at: $config_file"
+}
+
+# Create custom DuckPGQ extension config for static linking
+create_duckpgq_extension_config() {
+    local config_dir="${PROJECT_ROOT}/build/duckpgq"
+    local config_file="${config_dir}/duckpgq_extension_config.cmake"
+    local duckpgq_dir="${PROJECT_ROOT}/build/duckpgq/duckpgq-extension"
+    
+    log_info "Creating custom DuckPGQ extension config for static linking..."
+    
+    mkdir -p "$config_dir"
+    
+    cat > "$config_file" << EOF
+# Custom DuckPGQ extension config for static linking
+
+duckdb_extension_load(duckpgq
+    SOURCE_DIR ${duckpgq_dir}
+    LOAD_TESTS
+)
+EOF
+    
+    log_info "DuckPGQ extension config created at: $config_file"
 }
 
 # Install vcpkg dependencies for iOS
@@ -208,8 +254,10 @@ build_for_platform() {
     local triplet=$3         # vcpkg triplet
     local platform_name=$4   # for output naming
     local spatial_dir="${PROJECT_ROOT}/build/spatial/duckdb-spatial"
+    local duckpgq_dir="${PROJECT_ROOT}/build/duckpgq/duckpgq-extension"
     local build_path="$spatial_dir/build/${platform_name}"
     local vss_config="${PROJECT_ROOT}/build/vss/vss_extension_config.cmake"
+    local duckpgq_config="${PROJECT_ROOT}/build/duckpgq/duckpgq_extension_config.cmake"
     
     log_step "Building DuckDB for ${platform} (${arch})..."
     
@@ -247,7 +295,7 @@ build_for_platform() {
     log_info "  Platform: $platform"
     log_info "  Architecture: $arch"
     log_info "  SDK: $sdk_path"
-    log_info "  Extension configs: spatial + vss"
+    log_info "  Extension configs: spatial + vss + duckpgq"
     log_info "  In-tree extensions: $DUCKDB_EXTENSIONS"
     
     local num_cores=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)
@@ -278,7 +326,7 @@ build_for_platform() {
         -DCMAKE_OSX_SYSROOT="$sdk_path" \
         -DCMAKE_OSX_DEPLOYMENT_TARGET="$deployment_target" \
         -DEXTENSION_STATIC_BUILD=ON \
-        -DDUCKDB_EXTENSION_CONFIGS="$spatial_dir/extension_config.cmake;$vss_config" \
+        -DDUCKDB_EXTENSION_CONFIGS="$spatial_dir/extension_config.cmake;$vss_config;$duckpgq_config" \
         -DSPATIAL_USE_NETWORK=OFF \
         -DBUILD_SHELL=OFF \
         -DBUILD_UNITTESTS=OFF \
@@ -288,7 +336,7 @@ build_for_platform() {
         -DLOCAL_EXTENSION_REPO="" \
         -DOVERRIDE_GIT_DESCRIBE="" \
         -DBUILD_EXTENSIONS="$DUCKDB_EXTENSIONS" \
-        -S "$spatial_dir/duckdb" \
+        -S "$duckpgq_dir/duckdb" \
         -B "$build_path"
     
     log_info "Building DuckDB (this may take a while)..."
@@ -358,7 +406,7 @@ create_xcframework() {
 
 # Copy DuckDB headers to XCFramework
 copy_headers() {
-    local spatial_dir="${PROJECT_ROOT}/build/spatial/duckdb-spatial"
+    local duckpgq_dir="${PROJECT_ROOT}/build/duckpgq/duckpgq-extension"
     local xcframework_path="${OUTPUT_DIR}/DuckDB.xcframework"
     
     log_info "Copying DuckDB headers..."
@@ -368,7 +416,7 @@ copy_headers() {
         if [ -d "$platform_dir" ]; then
             local headers_dir="$platform_dir/Headers"
             mkdir -p "$headers_dir"
-            cp "$spatial_dir/duckdb/src/include/duckdb.h" "$headers_dir/"
+            cp "$duckpgq_dir/duckdb/src/include/duckdb.h" "$headers_dir/"
             log_info "Headers copied to $headers_dir"
         fi
     done
@@ -430,6 +478,12 @@ verify_extensions() {
     else
         missing+=("vss")
     fi
+
+    if nm "$lib_path" 2>/dev/null | grep -q "DuckpgqExtension"; then
+        log_info "  ✓ DuckPGQ extension found"
+    else
+        missing+=("duckpgq")
+    fi
     
     if nm "$lib_path" 2>/dev/null | grep -q "IcuExtension"; then
         log_info "  ✓ ICU extension found"
@@ -464,6 +518,7 @@ main() {
     log_info "Building DuckDB with ALL extensions statically linked:"
     log_info "  - spatial (GIS: ST_Point, ST_Distance, ST_Buffer, etc.)"
     log_info "  - vss (Vector Search: HNSW indexes, vss_join, vss_match)"
+    log_info "  - duckpgq (Graph: Property Graph Queries, SQL/PGQ)"
     log_info "  - icu (Unicode support)"
     log_info "  - json (JSON functions)"
     log_info "  - parquet (Parquet file format)"
@@ -477,7 +532,9 @@ main() {
     # Get extension sources
     get_spatial_source
     get_vss_source
+    get_duckpgq_source
     create_vss_extension_config
+    create_duckpgq_extension_config
     
     log_warn "⚠️  First build takes 30-60 minutes (compiling GDAL, GEOS, PROJ)"
     log_warn "   Subsequent builds are much faster (cached)"
@@ -542,7 +599,7 @@ while [[ $# -gt 0 ]]; do
             echo "  DUCKDB_VERSION       DuckDB version to build"
             echo ""
             echo "Included extensions (always):"
-            echo "  spatial, vss, icu, json, parquet, inet, tpch, tpcds"
+            echo "  spatial, vss, duckpgq, icu, json, parquet, inet, tpch, tpcds"
             exit 0
             ;;
         *)

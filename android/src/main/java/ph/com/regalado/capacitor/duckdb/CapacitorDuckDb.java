@@ -160,6 +160,9 @@ public class CapacitorDuckDb {
             return "Failed to create connection for database: " + dbName;
         }
 
+        // Enable HNSW experimental persistence by default
+        DuckDBNative.execute(connPtr, "SET hnsw_enable_experimental_persistence=true;");
+
         databases.put(dbName, dbPtr);
         connections.put(dbName, connPtr);
 
