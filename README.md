@@ -1,8 +1,14 @@
 # @bangonkali/capacitor-duckdb
 
-This project is entirely AI Vibe Coded at the moment with a little bit of insanity mixed with autism from the original author.
+> This project is entirely AI Vibe Coded at the moment with a little bit of insanity mixed with autism from the original author.
 
 A native DuckDB plugin for Capacitor-based Android and iOS applications. (see [Tauri DuckDB: WIP 🔄️](https://github.com/bangonkali/TAURI-duckdb))
+
+See Youtube reference below:
+
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=XxHog1q0LbE" target="_blank">
+ <img src="http://img.youtube.com/vi/XxHog1q0LbE/mqdefault.jpg" alt="Watch the video" width="240" />
+</a>
 
 ## Features
 
