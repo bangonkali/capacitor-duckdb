@@ -227,7 +227,7 @@ EOF
 create_custom_triplets() {
     local spatial_dir="${PROJECT_ROOT}/build/spatial/duckdb-spatial"
     local custom_triplets_dir="$spatial_dir/custom-triplets"
-    local deployment_target="13.0"
+    local deployment_target="14.0"
     
     log_info "Creating custom iOS triplets with deployment target $deployment_target..."
     
@@ -240,6 +240,7 @@ set(VCPKG_CRT_LINKAGE dynamic)
 set(VCPKG_LIBRARY_LINKAGE static)
 set(VCPKG_CMAKE_SYSTEM_NAME iOS)
 set(VCPKG_OSX_DEPLOYMENT_TARGET $deployment_target)
+set(VCPKG_CMAKE_CONFIGURE_OPTIONS "-DCMAKE_OSX_DEPLOYMENT_TARGET=$deployment_target")
 EOF
 
     # arm64-ios-simulator (Simulator on Apple Silicon)
@@ -249,7 +250,7 @@ set(VCPKG_CRT_LINKAGE dynamic)
 set(VCPKG_LIBRARY_LINKAGE static)
 set(VCPKG_CMAKE_SYSTEM_NAME iOS)
 set(VCPKG_OSX_DEPLOYMENT_TARGET $deployment_target)
-set(VCPKG_CMAKE_CONFIGURE_OPTIONS "-DCMAKE_OSX_SYSROOT=iphonesimulator")
+set(VCPKG_CMAKE_CONFIGURE_OPTIONS "-DCMAKE_OSX_SYSROOT=iphonesimulator" "-DCMAKE_OSX_DEPLOYMENT_TARGET=$deployment_target")
 EOF
 
     # x64-ios-simulator (Simulator on Intel)
@@ -259,7 +260,7 @@ set(VCPKG_CRT_LINKAGE dynamic)
 set(VCPKG_LIBRARY_LINKAGE static)
 set(VCPKG_CMAKE_SYSTEM_NAME iOS)
 set(VCPKG_OSX_DEPLOYMENT_TARGET $deployment_target)
-set(VCPKG_CMAKE_CONFIGURE_OPTIONS "-DCMAKE_OSX_SYSROOT=iphonesimulator")
+set(VCPKG_CMAKE_CONFIGURE_OPTIONS "-DCMAKE_OSX_SYSROOT=iphonesimulator" "-DCMAKE_OSX_DEPLOYMENT_TARGET=$deployment_target")
 EOF
 
     log_info "Custom triplets created at $custom_triplets_dir"
@@ -347,7 +348,7 @@ build_for_platform() {
     
     # Get SDK path
     local sdk_path=$(xcrun --sdk "${platform}" --show-sdk-path)
-    local deployment_target="13.0"
+    local deployment_target="14.0"
     
     log_info "Running CMake configuration..."
     log_info "  Platform: $platform"
@@ -605,6 +606,8 @@ main() {
     
     log_warn "⚠️  First build takes 30-60 minutes (compiling GDAL, GEOS, PROJ)"
     log_warn "   Subsequent builds are much faster (cached)"
+    log_warn "   If you see 'built for newer iOS version' errors, try clearing the cache:"
+    log_warn "   rm -rf build/spatial/duckdb-spatial/vcpkg_installed"
     log_info ""
     
     # Build for all iOS platforms
