@@ -4,7 +4,7 @@
 
 A native DuckDB plugin for Capacitor-based Android and iOS applications. (see [Tauri DuckDB: WIP 🔄️](https://github.com/bangonkali/TAURI-duckdb))
 
-See Youtube reference below:
+See Youtube reference of example-app demo below:
 
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=XxHog1q0LbE" target="_blank">
  <img src="http://img.youtube.com/vi/XxHog1q0LbE/mqdefault.jpg" alt="Watch the video" width="240" />
@@ -167,12 +167,6 @@ This is useful for:
 - Testing after upgrading DuckDB
 - Debugging parameter binding issues
 - Confirming spatial extension is loaded
-
-### Spatial Demo App 🌍
-
-The example app includes a comprehensive **Spatial Demo** that showcases all major DuckDB spatial functions with an interactive map interface:
-
-![Spatial Demo Screenshot](docs/spatial-demo.png)
 
 #### Features
 
