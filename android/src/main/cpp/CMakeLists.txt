@@ -23,6 +23,12 @@ set_target_properties(duckdb PROPERTIES
     IMPORTED_LOCATION ${CMAKE_SOURCE_DIR}/../jniLibs/${ANDROID_ABI}/libduckdb.so
 )
 
+# Define the prebuilt DuckPGQ extension library
+add_library(duckpgq_extension STATIC IMPORTED)
+set_target_properties(duckpgq_extension PROPERTIES
+    IMPORTED_LOCATION "${DUCKDB_SPATIAL_PATH}/build/android_${ANDROID_ABI}/extension/duckpgq/libduckpgq_extension.a"
+)
+
 # Create the JNI shared library
 add_library(capacitor_duckdb_jni SHARED
     duckdb_jni.cpp
@@ -33,11 +39,13 @@ target_include_directories(capacitor_duckdb_jni PRIVATE
     ${CMAKE_SOURCE_DIR}/include
     ${DUCKDB_PATH}/src/include
     ${DUCKDB_SPATIAL_PATH}/src
+    ${CMAKE_SOURCE_DIR}/../../../../build/duckpgq/duckpgq-extension/src/include
 )
 
 # Link libraries
 target_link_libraries(capacitor_duckdb_jni
     duckdb
+    duckpgq_extension
     log
     android
 )

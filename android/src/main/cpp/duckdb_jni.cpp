@@ -19,6 +19,7 @@
 #include "duckdb.hpp"
 #include "duckdb/main/extension_helper.hpp"
 #include "spatial/spatial_extension.hpp"
+#include "duckpgq_extension.hpp"
 
 // C API for query execution (more stable ABI)
 #include "duckdb.h"
@@ -259,6 +260,16 @@ Java_ph_com_regalado_capacitor_duckdb_DuckDBNative_openDatabase(JNIEnv *env, jcl
         
         LOGI("Database opened successfully with C++ API");
         
+        // Load the duckpgq extension using C++ template method
+        LOGI("Loading duckpgq extension...");
+        try {
+            wrapper->cpp_db->LoadStaticExtension<duckdb::DuckpgqExtension>();
+            LOGI("DuckPGQ extension loaded successfully!");
+        } catch (std::exception& e) {
+            LOGE("Failed to load duckpgq extension: %s", e.what());
+            // Continue anyway - database still usable
+        }
+
         // Load the spatial extension using C++ template method
         LOGI("Loading spatial extension...");
         try {
