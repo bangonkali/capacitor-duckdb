@@ -120,6 +120,7 @@ get_spatial_source() {
     
     # Use the duckdb submodule from spatial for consistency
     cd "$spatial_dir"
+    git reset --hard
     git submodule update --init --recursive
 }
 
@@ -134,6 +135,7 @@ get_vss_source() {
     if [ -d "$vss_dir" ]; then
         log_info "Using existing duckdb-vss source..."
         cd "$vss_dir"
+        git reset --hard
         git fetch origin
         git pull
     else
@@ -153,6 +155,7 @@ get_duckpgq_source() {
     if [ -d "$duckpgq_dir" ]; then
         log_info "Using existing duckpgq-extension source..."
         cd "$duckpgq_dir"
+        git reset --hard
         git fetch origin
         git checkout v1.4-andium
         git pull origin v1.4-andium
