@@ -190,6 +190,14 @@ get_duckpgq_source() {
     
     # Initialize duckpgq's duckdb submodule (the fork)
     cd "$duckpgq_dir"
+    
+    # Force HTTPS for submodules (fixes CI permission denied errors)
+    if [ -f ".gitmodules" ]; then
+        log_info "Switching submodule URLs from SSH to HTTPS..."
+        sed -i.bak 's/git@github.com:/https:\/\/github.com\//g' .gitmodules
+        git submodule sync
+    fi
+    
     git submodule update --init --recursive
 }
 
