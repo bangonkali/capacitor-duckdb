@@ -485,9 +485,25 @@ copy_headers() {
             local headers_dir="$platform_dir/Headers"
             mkdir -p "$headers_dir"
             cp "$duckpgq_dir/duckdb/src/include/duckdb.h" "$headers_dir/"
+            cp "$duckpgq_dir/duckdb/src/include/duckdb.hpp" "$headers_dir/"
             log_info "Headers copied to $headers_dir"
         fi
     done
+}
+
+# Copy DuckDB headers to Plugin source (required for C++ compilation)
+copy_headers_to_plugin() {
+    local duckpgq_dir="${PROJECT_ROOT}/build/duckpgq/duckpgq-extension"
+    local plugin_include_dir="${PROJECT_ROOT}/ios/Sources/CapacitorDuckDbPlugin/include"
+    
+    log_info "Copying DuckDB headers to plugin source..."
+    
+    mkdir -p "$plugin_include_dir"
+    cp "$duckpgq_dir/duckdb/src/include/duckdb.h" "$plugin_include_dir/"
+    cp "$duckpgq_dir/duckdb/src/include/duckdb.hpp" "$plugin_include_dir/"
+    cp -R "$duckpgq_dir/duckdb/src/include/duckdb" "$plugin_include_dir/"
+    
+    log_info "Headers copied to $plugin_include_dir"
 }
 
 # Build the example app
@@ -625,6 +641,7 @@ main() {
     
     # Copy headers
     copy_headers
+    copy_headers_to_plugin
     
     # Verify extensions
     verify_extensions
