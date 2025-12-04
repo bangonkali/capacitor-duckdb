@@ -1,0 +1,38 @@
+AI Slop License
+===============
+
+Copyright (c) 2025 Bangon Kali <bangonkali@gmail.com>
+Project: @bangonkali/capacitor-duckdb
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this AI Slop (yes, it was mostly vomited out by a large language model at 3 a.m.
+while the human author was hyperfixating on DuckDB and forgetting to drink water—
+classic Bangon Kali autism moment) to deal in the Slop without restriction,
+including without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Slop, and to permit persons
+to whom the Slop is furnished to do so, subject to the following conditions:
+
+1. The above copyright notice and this permission notice shall be included
+   in all copies or substantial portions of the AI Slop.
+
+2. You acknowledge that this is, in fact, AI Slop—gloriously unpolished,
+   probably hallucinated in places, and lovingly stitched together by someone
+   whose brain runs on a mix of caffeine, special interests, and sheer spite
+   toward actually reading the official Capacitor docs.
+
+3. No warranty is provided, express or implied. If the Slop sets your project
+   on fire, makes your queries return rubber ducks instead of data, or causes
+   unexpected existential dread about the nature of open-source in the age of
+   generative AI, that’s between you, your therapist, and whatever deity you blame
+   for letting Bangon Kali stay up past bedtime again.
+
+THE AI SLOP IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE AI SLOP OR THE USE OR OTHER DEALINGS IN THE
+AI SLOP.
+
+There, now it’s legally binding that this is trash (very high-quality trash,
+but trash nonetheless). Enjoy responsibly.
