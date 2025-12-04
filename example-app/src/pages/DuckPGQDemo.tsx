@@ -39,24 +39,19 @@ const DuckPGQDemo: React.FC = () => {
     const initializeDemo = async () => {
         try {
             setLoading(true);
+
+            // Delete existing database to start fresh (avoids DROP PROPERTY GRAPH issues)
+            try {
+                await CapacitorDuckDb.deleteDatabase({ database: DB_NAME });
+            } catch (e) {
+                // Ignore error if DB doesn't exist
+            }
+
             // Open the database connection
             await CapacitorDuckDb.open({ database: DB_NAME });
 
-            // Explicitly load duckpgq extension just in case
-            try {
-                await CapacitorDuckDb.execute({ database: DB_NAME, statements: 'INSTALL duckpgq; LOAD duckpgq;' });
-            } catch (e) {
-                console.warn('Failed to load duckpgq (might be static):', e);
-            }
-
             // Create tables and sample data
-            // Note: Adding PRIMARY KEYs as they might be required for robust graph creation
             const setupQuery = `
-                DROP PROPERTY GRAPH IF EXISTS finbench;
-                DROP TABLE IF EXISTS Transfer;
-                DROP TABLE IF EXISTS Account;
-                DROP TABLE IF EXISTS Person;
-
                 CREATE TABLE Person (personId BIGINT PRIMARY KEY, name VARCHAR);
                 CREATE TABLE Account (accountId BIGINT PRIMARY KEY, personId BIGINT);
                 CREATE TABLE Transfer (fromId BIGINT, toId BIGINT, amount DOUBLE);
@@ -91,7 +86,6 @@ const DuckPGQDemo: React.FC = () => {
                     Transfer 
                         SOURCE KEY (fromId) REFERENCES Account (accountId)
                         DESTINATION KEY (toId) REFERENCES Account (accountId)
-                        LABEL Transfer
                 );
             `;
             console.log('Executing graph query...');

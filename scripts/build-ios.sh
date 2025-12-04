@@ -212,6 +212,48 @@ EOF
     log_info "DuckPGQ extension config created at: $config_file"
 }
 
+# Create custom triplets for iOS
+create_custom_triplets() {
+    local spatial_dir="${PROJECT_ROOT}/build/spatial/duckdb-spatial"
+    local custom_triplets_dir="$spatial_dir/custom-triplets"
+    local deployment_target="13.0"
+    
+    log_info "Creating custom iOS triplets with deployment target $deployment_target..."
+    
+    mkdir -p "$custom_triplets_dir"
+    
+    # arm64-ios (Device)
+    cat > "$custom_triplets_dir/arm64-ios.cmake" << EOF
+set(VCPKG_TARGET_ARCHITECTURE arm64)
+set(VCPKG_CRT_LINKAGE dynamic)
+set(VCPKG_LIBRARY_LINKAGE static)
+set(VCPKG_CMAKE_SYSTEM_NAME iOS)
+set(VCPKG_OSX_DEPLOYMENT_TARGET $deployment_target)
+EOF
+
+    # arm64-ios-simulator (Simulator on Apple Silicon)
+    cat > "$custom_triplets_dir/arm64-ios-simulator.cmake" << EOF
+set(VCPKG_TARGET_ARCHITECTURE arm64)
+set(VCPKG_CRT_LINKAGE dynamic)
+set(VCPKG_LIBRARY_LINKAGE static)
+set(VCPKG_CMAKE_SYSTEM_NAME iOS)
+set(VCPKG_OSX_DEPLOYMENT_TARGET $deployment_target)
+set(VCPKG_CMAKE_CONFIGURE_OPTIONS "-DCMAKE_OSX_SYSROOT=iphonesimulator")
+EOF
+
+    # x64-ios-simulator (Simulator on Intel)
+    cat > "$custom_triplets_dir/x64-ios-simulator.cmake" << EOF
+set(VCPKG_TARGET_ARCHITECTURE x64)
+set(VCPKG_CRT_LINKAGE dynamic)
+set(VCPKG_LIBRARY_LINKAGE static)
+set(VCPKG_CMAKE_SYSTEM_NAME iOS)
+set(VCPKG_OSX_DEPLOYMENT_TARGET $deployment_target)
+set(VCPKG_CMAKE_CONFIGURE_OPTIONS "-DCMAKE_OSX_SYSROOT=iphonesimulator")
+EOF
+
+    log_info "Custom triplets created at $custom_triplets_dir"
+}
+
 # Install vcpkg dependencies for iOS
 install_vcpkg_deps() {
     local triplet=$1
@@ -238,11 +280,16 @@ install_vcpkg_deps() {
     # Restore original vcpkg.json for iOS (curl not needed on iOS)
     cp "$spatial_dir/vcpkg.json.original" "$spatial_dir/vcpkg.json"
     
+    # Create custom triplets
+    create_custom_triplets
+    local custom_triplets_dir="$spatial_dir/custom-triplets"
+    
     # Install dependencies
     "$VCPKG_ROOT/vcpkg" install \
         --triplet="$triplet" \
         --host-triplet="$host_triplet" \
-        --x-install-root="$spatial_dir/vcpkg_installed"
+        --x-install-root="$spatial_dir/vcpkg_installed" \
+        --overlay-triplets="$custom_triplets_dir"
     
     log_info "vcpkg dependencies installed for $triplet"
 }
@@ -312,6 +359,8 @@ build_for_platform() {
         system_processor="aarch64"
     fi
     
+    local custom_triplets_dir="$spatial_dir/custom-triplets"
+
     # Build with vcpkg toolchain
     cmake -G "Ninja" \
         -DCMAKE_BUILD_TYPE=Release \
@@ -320,6 +369,7 @@ build_for_platform() {
         -DVCPKG_HOST_TRIPLET="$host_triplet" \
         -DVCPKG_INSTALLED_DIR="$spatial_dir/vcpkg_installed" \
         -DVCPKG_OVERLAY_PORTS="$spatial_dir/vcpkg_ports" \
+        -DVCPKG_OVERLAY_TRIPLETS="$custom_triplets_dir" \
         -DCMAKE_SYSTEM_NAME="$system_name" \
         -DCMAKE_SYSTEM_PROCESSOR="$system_processor" \
         -DCMAKE_OSX_ARCHITECTURES="$arch" \
@@ -343,7 +393,13 @@ build_for_platform() {
     cmake --build "$build_path" --config Release -- -j$num_cores
     
     # Verify the build output
+    # Verify the build output
     if [ -f "$build_path/src/libduckdb.a" ]; then
+        log_info "Built: $build_path/src/libduckdb.a"
+        log_info "Size: $(du -h "$build_path/src/libduckdb.a" | cut -f1)"
+    elif [ -f "$build_path/src/libduckdb_static.a" ]; then
+        log_info "Found libduckdb_static.a, renaming to libduckdb.a..."
+        cp "$build_path/src/libduckdb_static.a" "$build_path/src/libduckdb.a"
         log_info "Built: $build_path/src/libduckdb.a"
         log_info "Size: $(du -h "$build_path/src/libduckdb.a" | cut -f1)"
     else
