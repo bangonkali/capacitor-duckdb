@@ -1,21 +1,22 @@
 # @bangonkali/capacitor-duckdb
 
-This project is entirely AI Vibe Coded at the moment!
+This project is entirely AI Vibe Coded at the moment with a little bit of insanity mixed with autism from the original author.
 
-A native DuckDB plugin for Capacitor-based Android and iOS applications. Uses JNI to directly wrap DuckDB's C++ API for maximum performance and proper extension support.
+A native DuckDB plugin for Capacitor-based Android and iOS applications. (see [Tauri DuckDB: WIP 🔄️](https://github.com/bangonkali/TAURI-duckdb))
 
 ## Features
 
-- 🦆 Native DuckDB integration via JNI with C++ API
-- 📱 Android support (arm64-v8a, x86_64)
-- 📁 Persistent storage using app's internal storage
-- 🔄 Full SQL support (CREATE, SELECT, INSERT, UPDATE, DELETE)
-- 📊 JSON result format with column-name keys
-- ⚡ Prepared statements with parameter binding
-- 🌍 **Spatial Extension** - Full GIS support with GDAL, GEOS, PROJ (Android & iOS)
-- 📤 **Export to Parquet** - Export tables to Parquet format with compression options
-- 📂 **Directory picker** - Native Android file picker using Storage Access Framework
-- 🧪 **Integration Tests** - Built-in test suite for verifying all functionality
+- Persistent storage using DuckDB on Android and iOS
+- DuckDB Plugins in the works:
+  - icu
+  - json
+  - parquet
+  - inet
+  - tpch
+  - tpcds
+  - vss - partially tested 😂
+  - spatial - partially tested 😂
+  - [pgq](https://duckpgq.org/) - seems not working at the moment 😅
 
 ## Documentation
 
@@ -32,10 +33,14 @@ A native DuckDB plugin for Capacitor-based Android and iOS applications. Uses JN
 - https://capacitorjs.com/docs/plugins/workflow
 - https://github.com/capacitor-community/sqlite as inspiration
 
+## Example App in the Repo
+
+1. 
+
 ## Install
 
 ```bash
-npm install @bangonkali/capacitor-duckdb
+npm install @bangonkali/capacitor-duckdb # This is not full tested yet! But this repo provides an example app
 npx cap sync
 ```
 
@@ -191,6 +196,8 @@ The example app includes a comprehensive **Spatial Demo** that showcases all maj
 
 #### Running the Spatial Demo
 
+**macOS / Linux:**
+
 ```bash
 # 1. Build DuckDB (all extensions are included by default)
 ./scripts/build-android.sh
@@ -203,6 +210,22 @@ npm install
 npm run build
 npx cap sync android
 npx cap run android
+```
+
+**Windows:**
+
+```powershell
+# 1. Build DuckDB (all extensions are included by default)
+.\scripts\build-android.ps1
+
+# 2. Build Example App (prepares DB, builds plugin & web assets, syncs Capacitor)
+.\scripts\build-example-android.ps1
+
+# 3. Run on Android
+cd example-app
+npx cap run android
+# Or select a specific device:
+# npx cap run android --target <device-id>
 ```
 
 #### Data Sources
@@ -619,7 +642,9 @@ Options for listing tables
 
 Construct a type with a set of properties K of type T
 
-<code>{ [P in K]: T; }</code>
+<code>{
+ [P in K]: T;
+ }</code>
 
 </docgen-api>
 

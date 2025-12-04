@@ -20,9 +20,6 @@ import {
   IonChip,
   IonLabel,
   IonModal,
-  IonList,
-  IonItem,
-  IonToggle,
   IonCard,
   IonCardHeader,
   IonCardTitle,
@@ -51,10 +48,13 @@ import {
 } from 'ionicons/icons';
 
 import MapView, { type MapViewRef } from '../components/map/MapView';
-import DrawingToolbar, { type DrawingMode } from '../components/map/DrawingToolbar';
+import DrawingToolbar, { type DrawingMode, type DrawingToolbarRef } from '../components/map/DrawingToolbar';
 import LayerSelector from '../components/map/LayerSelector';
-import spatialService, { type SpatialStats, type LayerInfo } from '../services/spatialService';
+import spatialService, { type SpatialStats } from '../services/spatialService';
+import settingsService, { DEFAULT_SETTINGS, type UserLayerVisibility } from '../services/settingsService';
 import type { Feature as OlFeature } from 'ol';
+import type { FeatureCollection } from 'geojson';
+import WKT from 'ol/format/WKT';
 
 import './SpatialTab.css';
 
@@ -154,6 +154,7 @@ const FUNCTION_CATEGORIES: FunctionCategory[] = [
 const SpatialTab: React.FC = () => {
   const history = useHistory();
   const mapRef = useRef<MapViewRef>(null);
+  const drawingToolbarRef = useRef<DrawingToolbarRef>(null);
   const [presentToast] = useIonToast();
 
   // State
@@ -162,16 +163,16 @@ const SpatialTab: React.FC = () => {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [stats, setStats] = useState<SpatialStats | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  // Layer visibility - legacy props
-  const [showCountries, setShowCountries] = useState(true);
-  const [showCities, setShowCities] = useState(false);
-  const [showAirports, setShowAirports] = useState(false);
-  const [showRivers, setShowRivers] = useState(false);
-  const [showLakes, setShowLakes] = useState(false);
+  
+  // Map settings
+  const [mapSettings, setMapSettings] = useState({
+    center: DEFAULT_SETTINGS.defaultMapCenter,
+    zoom: DEFAULT_SETTINGS.defaultMapZoom
+  });
+  const [userLayerVisibility, setUserLayerVisibility] = useState<UserLayerVisibility>(DEFAULT_SETTINGS.userLayerVisibility);
+  const [userDrawings, setUserDrawings] = useState<FeatureCollection>({ type: 'FeatureCollection', features: [] });
 
   // Dynamic layers from layer registry
-  const [availableLayers, setAvailableLayers] = useState<LayerInfo[]>([]);
   const [enabledLayers, setEnabledLayers] = useState<Set<string>>(new Set());
   const [pendingLayers, setPendingLayers] = useState<Set<string>>(new Set()); // Layers selected but not yet applied
   const [useDynamicLayers, setUseDynamicLayers] = useState(false);
@@ -186,18 +187,37 @@ const SpatialTab: React.FC = () => {
   useEffect(() => {
     const init = async () => {
       try {
+        // Load settings first
+        try {
+          const settings = await settingsService.getSettings();
+          setMapSettings({
+            center: settings.defaultMapCenter,
+            zoom: settings.defaultMapZoom
+          });
+          setUserLayerVisibility(settings.userLayerVisibility);
+        } catch (e) {
+          console.warn('[SpatialTab] Failed to load settings, using defaults', e);
+        }
+
         const result = await spatialService.initialize((message, percent) => {
           setLoadingMessage(message);
           setLoadingProgress(percent / 100);
         });
         setStats(result);
 
+        // Load user drawings
+        try {
+          const drawings = await spatialService.getDrawingsGeoJSON();
+          setUserDrawings(drawings);
+        } catch (e) {
+          console.warn('[SpatialTab] Failed to load user drawings', e);
+        }
+
         // Try to load dynamic layers from registry
         try {
           const layers = await spatialService.getAvailableLayers();
           console.log(`[SpatialTab] Got ${layers.length} layers from registry`);
           if (layers.length > 0) {
-            setAvailableLayers(layers);
             setUseDynamicLayers(true);
             // Enable default layers
             const defaultEnabled = new Set(
@@ -270,6 +290,15 @@ const SpatialTab: React.FC = () => {
     });
   }, []);
 
+  // Handle settings change from LayerSelector
+  const handleSettingsChange = useCallback((newSettings: typeof DEFAULT_SETTINGS) => {
+    setUserLayerVisibility(newSettings.userLayerVisibility);
+    setMapSettings({
+      center: newSettings.defaultMapCenter,
+      zoom: newSettings.defaultMapZoom
+    });
+  }, []);
+
   // Apply pending layers when panel closes
   const handleLayerPanelClose = useCallback(() => {
     console.log(`[SpatialTab] Applying ${pendingLayers.size} layers:`, Array.from(pendingLayers));
@@ -295,9 +324,16 @@ const SpatialTab: React.FC = () => {
         color: 'success',
       });
 
-      // Refresh stats
-      const newStats = await spatialService.getStats();
+      // Refresh stats and drawings
+      const [newStats, newDrawings] = await Promise.all([
+        spatialService.getStats(),
+        spatialService.getDrawingsGeoJSON()
+      ]);
       setStats(newStats);
+      setUserDrawings(newDrawings);
+      
+      // Clear the drawing from the toolbar since it's now in the map view
+      drawingToolbarRef.current?.clearDrawings();
     } catch (err) {
       console.error('Failed to save geometry:', err);
       presentToast({
@@ -305,6 +341,52 @@ const SpatialTab: React.FC = () => {
         duration: 2000,
         color: 'danger',
       });
+    }
+  }, [presentToast]);
+
+  // Handle geometry delete
+  const handleGeometryDelete = useCallback(async (feature: OlFeature) => {
+    try {
+      const id = feature.getId();
+      if (typeof id === 'number') {
+        await spatialService.deleteDrawing(id);
+        presentToast({ message: 'Drawing deleted', duration: 2000, color: 'success' });
+        
+        // Refresh
+        const [newStats, newDrawings] = await Promise.all([
+          spatialService.getStats(),
+          spatialService.getDrawingsGeoJSON()
+        ]);
+        setStats(newStats);
+        setUserDrawings(newDrawings);
+      }
+    } catch (err) {
+      console.error('Failed to delete geometry:', err);
+    }
+  }, [presentToast]);
+
+  // Handle geometry modify
+  const handleGeometryModify = useCallback(async (feature: OlFeature) => {
+    try {
+      const id = feature.getId();
+      if (typeof id === 'number') {
+        const geometry = feature.getGeometry();
+        if (geometry) {
+          const format = new WKT();
+          const wkt = format.writeGeometry(geometry, {
+            featureProjection: 'EPSG:3857',
+            dataProjection: 'EPSG:4326',
+          });
+          await spatialService.updateUserDrawingGeometry(id, wkt);
+          presentToast({ message: 'Drawing updated', duration: 2000, color: 'success' });
+          
+          // Refresh
+          const newDrawings = await spatialService.getDrawingsGeoJSON();
+          setUserDrawings(newDrawings);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to update geometry:', err);
     }
   }, [presentToast]);
 
@@ -416,23 +498,24 @@ const SpatialTab: React.FC = () => {
         <div className="map-container">
           <MapView
             ref={mapRef}
-            center={[0, 20]}
-            zoom={2}
-            showCountries={!useDynamicLayers && showCountries}
-            showCities={!useDynamicLayers && showCities}
-            showAirports={!useDynamicLayers && showAirports}
-            showRivers={!useDynamicLayers && showRivers}
-            showLakes={!useDynamicLayers && showLakes}
+            center={mapSettings.center}
+            zoom={mapSettings.zoom}
+            showCountries={!useDynamicLayers}
             dynamicLayers={useDynamicLayers ? enabledLayers : undefined}
+            userDrawings={userDrawings}
+            userLayerVisibility={userLayerVisibility}
             onMapClick={handleMapClick}
             height="100%"
           />
 
           {/* Drawing toolbar */}
           <DrawingToolbar
+            ref={drawingToolbarRef}
             map={mapRef.current?.getMap() ?? null}
             onModeChange={handleModeChange}
             onGeometryComplete={handleGeometryComplete}
+            onGeometryDelete={handleGeometryDelete}
+            onGeometryModify={handleGeometryModify}
             snapEnabled={true}
             snapTolerance={20}
           />
@@ -461,97 +544,36 @@ const SpatialTab: React.FC = () => {
             </IonToolbar>
           </IonHeader>
           <IonContent>
-            {/* Show dynamic layer selector if available */}
-            {useDynamicLayers && availableLayers.length > 0 ? (
-              <>
-                <LayerSelector
-                  enabledLayers={pendingLayers}
-                  onLayerToggle={handleLayerToggle}
-                  onBulkToggle={handleBulkToggle}
-                  maxHeight="calc(100vh - 200px)"
-                />
-                <IonCard>
-                  <IonCardHeader>
-                    <IonCardTitle>
-                      <IonIcon icon={informationCircleOutline} /> Data Source
-                    </IonCardTitle>
-                  </IonCardHeader>
-                  <IonCardContent>
-                    <p>
-                      <strong>{availableLayers.length}</strong> layers from <strong>Natural Earth</strong> (1:10m scale).
-                      <br />
-                      License: Public Domain (CC0)
-                    </p>
-                    <p>
-                      <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener noreferrer">
-                        naturalearthdata.com
-                      </a>
-                    </p>
-                  </IonCardContent>
-                </IonCard>
-              </>
-            ) : (
-              /* Legacy layer toggles */
-              <>
-                <IonList>
-                  <IonItem>
-                    <IonLabel>Countries</IonLabel>
-                    <IonToggle
-                      checked={showCountries}
-                      onIonChange={(e) => setShowCountries(e.detail.checked)}
-                    />
-                  </IonItem>
-                  <IonItem>
-                    <IonLabel>Cities ({stats?.cities || 0})</IonLabel>
-                    <IonToggle
-                      checked={showCities}
-                      onIonChange={(e) => setShowCities(e.detail.checked)}
-                    />
-                  </IonItem>
-                  <IonItem>
-                    <IonLabel>Airports ({stats?.airports || 0})</IonLabel>
-                    <IonToggle
-                      checked={showAirports}
-                      onIonChange={(e) => setShowAirports(e.detail.checked)}
-                    />
-                  </IonItem>
-                  <IonItem>
-                    <IonLabel>Rivers ({stats?.rivers || 0})</IonLabel>
-                    <IonToggle
-                      checked={showRivers}
-                      onIonChange={(e) => setShowRivers(e.detail.checked)}
-                    />
-                  </IonItem>
-                  <IonItem>
-                    <IonLabel>Lakes ({stats?.lakes || 0})</IonLabel>
-                    <IonToggle
-                      checked={showLakes}
-                      onIonChange={(e) => setShowLakes(e.detail.checked)}
-                    />
-                  </IonItem>
-                </IonList>
-
-                <IonCard>
-                  <IonCardHeader>
-                    <IonCardTitle>
-                      <IonIcon icon={informationCircleOutline} /> Data Source
-                    </IonCardTitle>
-                  </IonCardHeader>
-                  <IonCardContent>
-                    <p>
-                      Map data from <strong>Natural Earth</strong> (1:110m scale).
-                      <br />
-                      License: Public Domain (CC0)
-                    </p>
-                    <p>
-                      <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener noreferrer">
-                        naturalearthdata.com
-                      </a>
-                    </p>
-                  </IonCardContent>
-                </IonCard>
-              </>
-            )}
+            <LayerSelector
+              enabledLayers={pendingLayers}
+              onLayerToggle={handleLayerToggle}
+              onBulkToggle={handleBulkToggle}
+              onSettingsChange={handleSettingsChange}
+              maxHeight="calc(100vh - 130px)"
+            />
+            
+            {/* Data Source Info - Only show if we have layers or if we want to show attribution */}
+            <div style={{ padding: '0 16px 16px' }}>
+              <IonCard>
+                <IonCardHeader>
+                  <IonCardTitle>
+                    <IonIcon icon={informationCircleOutline} /> Data Source
+                  </IonCardTitle>
+                </IonCardHeader>
+                <IonCardContent>
+                  <p>
+                    Map data from <strong>Natural Earth</strong>.
+                    <br />
+                    License: Public Domain (CC0)
+                  </p>
+                  <p>
+                    <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener noreferrer">
+                      naturalearthdata.com
+                    </a>
+                  </p>
+                </IonCardContent>
+              </IonCard>
+            </div>
           </IonContent>
         </IonModal>
 

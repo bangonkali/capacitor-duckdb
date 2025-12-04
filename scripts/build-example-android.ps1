@@ -74,6 +74,12 @@ Write-Host ""
 Write-Host "🔨 Step 3: Building plugin TypeScript..." -ForegroundColor Green
 Push-Location $ROOT_DIR
 try {
+    # Ensure dependencies are installed
+    if (-not (Test-Path "node_modules")) {
+        Write-Host "   Installing dependencies..." -ForegroundColor Cyan
+        cmd /c "npm install"
+    }
+    
     cmd /c "npm run build"
     if ($LASTEXITCODE -ne 0) { throw "Plugin build failed" }
     Write-Host "   ✓ Plugin built" -ForegroundColor Green

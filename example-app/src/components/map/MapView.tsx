@@ -21,6 +21,7 @@ import type { FeatureCollection } from 'geojson';
 import { buffer as bufferExtent } from 'ol/extent';
 
 import spatialService, { type LayerName, type LayerInfo } from '../../services/spatialService';
+import type { UserLayerVisibility } from '../../services/settingsService';
 import type { Extent } from 'ol/extent';
 
 import 'ol/ol.css';
@@ -48,6 +49,8 @@ export interface MapViewProps {
   dynamicLayers?: Set<string>;
   /** GeoJSON data for the user drawings layer */
   userDrawings?: FeatureCollection;
+  /** Visibility settings for user drawings */
+  userLayerVisibility?: UserLayerVisibility;
   /** GeoJSON data for highlighting/results */
   highlightData?: FeatureCollection;
   /** Callback when map is clicked */
@@ -199,6 +202,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>((props, ref) => {
     showLakes = false,
     dynamicLayers,
     userDrawings,
+    userLayerVisibility,
     highlightData,
     onMapClick,
     onViewChange,
@@ -240,6 +244,13 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>((props, ref) => {
   const [viewExtent4326, setViewExtent4326] = useState<Extent | null>(null);
   const [viewZoom, setViewZoom] = useState(zoom);
 
+  const userLayerVisibilityRef = useRef(userLayerVisibility);
+  useEffect(() => {
+    userLayerVisibilityRef.current = userLayerVisibility;
+    // Force redraw of user drawings when visibility changes
+    layersRef.current.userDrawings?.changed();
+  }, [userLayerVisibility]);
+
   const stylesRef = useRef({ ...defaultStyles, ...layerStyles });
 
   // Create city style function with labels
@@ -276,6 +287,12 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>((props, ref) => {
     const calculatedExtent = view.calculateExtent(size);
     const padded = bufferExtent(calculatedExtent, 25000); // pad by ~25km to cover rotation
     const geographicExtent = transformExtent(padded, 'EPSG:3857', 'EPSG:4326') as Extent;
+    
+    // Validate extent to prevent NaN errors
+    if (geographicExtent.some(val => !Number.isFinite(val))) {
+      return;
+    }
+
     setViewExtent4326(geographicExtent);
     setViewZoom(view.getZoom() || 2);
   }, []);
@@ -335,7 +352,17 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>((props, ref) => {
 
     const userDrawingsLayer = new VectorLayer({
       source: userDrawingsSource,
-      style: stylesRef.current.userDrawings,
+      properties: { name: 'userDrawings' },
+      style: (feature) => {
+        const visibility = userLayerVisibilityRef.current;
+        if (visibility) {
+          const type = feature.getGeometry()?.getType();
+          if ((type === 'Point' || type === 'MultiPoint') && !visibility.points) return undefined;
+          if ((type === 'LineString' || type === 'MultiLineString') && !visibility.lines) return undefined;
+          if ((type === 'Polygon' || type === 'MultiPolygon') && !visibility.polygons) return undefined;
+        }
+        return stylesRef.current.userDrawings;
+      },
       zIndex: 10,
     });
 
@@ -356,6 +383,15 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>((props, ref) => {
       highlight: highlightLayer,
     };
 
+    // Validate center to prevent map errors
+    let validCenter = center;
+    if (!Array.isArray(center) || center.length !== 2 || 
+        !Number.isFinite(center[0]) || !Number.isFinite(center[1]) ||
+        Math.abs(center[1]) > 90) {
+      console.warn('[MapView] Invalid center coordinate:', center, 'Using default [0, 20]');
+      validCenter = [0, 20];
+    }
+
     // Create map
     const map = new OLMap({
       target: mapContainerRef.current,
@@ -373,7 +409,7 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>((props, ref) => {
         highlightLayer,
       ],
       view: new View({
-        center: fromLonLat(center),
+        center: fromLonLat(validCenter),
         zoom: zoom,
         maxZoom: 18,
         minZoom: 1,
@@ -410,12 +446,33 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>((props, ref) => {
       onViewChange?.(currentCenter, currentZoom, extent);
     });
 
+    // Add size change handler to ensure view state is updated when map size is detected
+    map.on('change:size', () => {
+      updateViewState();
+    });
+
     // Cleanup
     return () => {
       map.setTarget(undefined);
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [updateViewState]);
+
+  // Handle container resize
+  useEffect(() => {
+    if (!mapContainerRef.current || !mapRef.current) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      mapRef.current?.updateSize();
+      updateViewState();
+    });
+
+    resizeObserver.observe(mapContainerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
   }, [updateViewState]);
 
   const shouldFetchLayer = useCallback((layerName: LayerName, requestedExtent: Extent, zoomLevel: number) => {
@@ -622,6 +679,12 @@ export const MapView = forwardRef<MapViewRef, MapViewProps>((props, ref) => {
 
     const source = layer.getSource();
     if (!source) return;
+
+    // Validate extent before fetching
+    if (extent.some(val => !Number.isFinite(val))) {
+      console.warn(`[MapView] Skip ${layerName} - invalid extent`, extent);
+      return;
+    }
 
     // Check cache - skip if we already have data for this extent
     const cached = dynamicLayerCacheRef.current.get(layerName);

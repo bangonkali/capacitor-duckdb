@@ -5,7 +5,7 @@
  * with snapping assistance and haptic feedback.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import { IonFab, IonFabButton, IonFabList, IonIcon, IonBadge } from '@ionic/react';
 import {
   locationOutline,
@@ -114,7 +114,7 @@ const selectedStyle = new Style({
 // Component
 // ============================================================================
 
-export function DrawingToolbar({
+export const DrawingToolbar = forwardRef<DrawingToolbarRef, DrawingToolbarProps>(({
   map,
   snapSource,
   onGeometryComplete,
@@ -124,7 +124,7 @@ export function DrawingToolbar({
   snapTolerance = 20,
   snapEnabled = true,
   position = 'bottom-start',
-}: DrawingToolbarProps) {
+}, ref) => {
   const [mode, setMode] = useState<DrawingMode>('none');
   const [isDrawing, setIsDrawing] = useState(false);
   const [vertexCount, setVertexCount] = useState(0);
@@ -176,7 +176,11 @@ export function DrawingToolbar({
       drawInteractionRef.current = null;
     }
     if (modifyInteractionRef.current) {
-      map.removeInteraction(modifyInteractionRef.current);
+      if (Array.isArray(modifyInteractionRef.current)) {
+        modifyInteractionRef.current.forEach(interaction => map.removeInteraction(interaction));
+      } else {
+        map.removeInteraction(modifyInteractionRef.current);
+      }
       modifyInteractionRef.current = null;
     }
     if (selectInteractionRef.current) {
@@ -237,10 +241,30 @@ export function DrawingToolbar({
         style: drawingStyle,
       });
 
-      draw.on('drawstart', () => {
+      draw.on('drawstart', (e) => {
         setIsDrawing(true);
         setVertexCount(1);
         triggerHaptic(ImpactStyle.Medium);
+
+        // Update vertex count as user draws
+        const feature = e.feature;
+        const geometry = feature.getGeometry();
+        if (geometry) {
+          geometry.on('change', () => {
+            const type = geometry.getType();
+            let count = 0;
+            
+            if (type === 'LineString') {
+              count = (geometry as any).getCoordinates().length;
+            } else if (type === 'Polygon') {
+              const coords = (geometry as any).getCoordinates();
+              if (coords && coords.length > 0) {
+                count = coords[0].length;
+              }
+            }
+            setVertexCount(count);
+          });
+        }
       });
 
       draw.on('drawend', (e: DrawEvent) => {
@@ -268,22 +292,51 @@ export function DrawingToolbar({
         source: drawSourceRef.current,
       });
 
-      modify.on('modifyend', (e) => {
+      const handleModifyEnd = (e: any) => {
         triggerHaptic(ImpactStyle.Medium);
         const features = e.features.getArray();
         if (features.length > 0 && onGeometryModify) {
           onGeometryModify(features[0]);
         }
-      });
+      };
 
+      modify.on('modifyend', handleModifyEnd);
       map.addInteraction(modify);
       modifyInteractionRef.current = modify;
 
+      // Also allow modifying saved drawings
+      const userDrawingsLayer = map.getLayers().getArray().find(l => l.get('name') === 'userDrawings') as VectorLayer<VectorSource>;
+      if (userDrawingsLayer) {
+        const modifyUser = new Modify({
+          source: userDrawingsLayer.getSource()!,
+        });
+        modifyUser.on('modifyend', handleModifyEnd);
+        map.addInteraction(modifyUser);
+        // Store it in a way we can remove it. 
+        // Since we only have one ref, we'll attach it to the map data or just use a local variable?
+        // We need to clean it up in cleanupInteractions.
+        // Let's use a custom property on the ref or just add it to the map and let cleanup remove all interactions?
+        // cleanupInteractions removes specific refs.
+        // We should probably change modifyInteractionRef to hold an array or just add a second ref.
+        // For simplicity, let's just add it to the map and rely on a more robust cleanup.
+        // Actually, cleanupInteractions only removes what's in the refs.
+        // Let's hack it: store the second interaction in the same ref? No, it's typed.
+        // Let's just add it to the map and not track it? No, then it won't be removed.
+        // Let's add a secondary ref or array.
+        (modifyInteractionRef.current as any) = [modify, modifyUser]; 
+      }
+
     } else if (mode === 'delete') {
       // Setup select interaction for deletion
+      const layers = [drawLayerRef.current!];
+      const userDrawingsLayer = map.getLayers().getArray().find(l => l.get('name') === 'userDrawings') as VectorLayer<VectorSource>;
+      if (userDrawingsLayer) {
+        layers.push(userDrawingsLayer);
+      }
+
       const select = new Select({
         style: selectedStyle,
-        layers: [drawLayerRef.current!],
+        layers,
       });
 
       select.on('select', (e) => {
@@ -293,7 +346,15 @@ export function DrawingToolbar({
           
           // Remove the selected feature
           selected.forEach((feature) => {
-            drawSourceRef.current.removeFeature(feature);
+            // Try removing from draw source
+            if (drawSourceRef.current.hasFeature(feature)) {
+              drawSourceRef.current.removeFeature(feature);
+            }
+            // Try removing from user drawings source
+            if (userDrawingsLayer && userDrawingsLayer.getSource()?.hasFeature(feature)) {
+              userDrawingsLayer.getSource()?.removeFeature(feature);
+            }
+            
             onGeometryDelete?.(feature);
           });
           
@@ -344,11 +405,19 @@ export function DrawingToolbar({
     }
   }, [isDrawing]);
 
-  // Clear all drawings (exported for parent component use)
-  void function clearDrawings() {
-    drawSourceRef.current.clear();
-    triggerHaptic(ImpactStyle.Heavy);
-  };
+  // Expose methods via ref
+  useImperativeHandle(ref, () => ({
+    getMode: () => mode,
+    setMode: (newMode: DrawingMode) => handleModeChange(newMode),
+    undoLastVertex,
+    cancelDrawing,
+    getFeatures: () => drawSourceRef.current.getFeatures(),
+    clearDrawings: () => {
+      drawSourceRef.current.clear();
+      triggerHaptic(ImpactStyle.Heavy);
+    },
+    exportGeoJSON: () => ''
+  }));;
 
   // Get position classes
   const fabVertical = 'bottom';
@@ -367,9 +436,9 @@ export function DrawingToolbar({
       {isDrawing && (
         <div className="drawing-status">
           <IonBadge color="success">
-            Drawing {mode}: {vertexCount} {vertexCount === 1 ? 'point' : 'points'}
+            Drawing {mode}: {vertexCount} pts
           </IonBadge>
-          {(mode === 'line' || mode === 'polygon') && vertexCount >= 2 && (
+          {((mode === 'line' && vertexCount >= 2) || (mode === 'polygon' && vertexCount >= 4)) && (
             <IonFabButton size="small" color="success" onClick={finishDrawing}>
               <IonIcon icon={checkmarkOutline} />
             </IonFabButton>
@@ -428,7 +497,7 @@ export function DrawingToolbar({
       </IonFab>
     </>
   );
-}
+});
 
 function getModeIcon(mode: DrawingMode): string {
   switch (mode) {

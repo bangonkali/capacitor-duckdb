@@ -5,7 +5,7 @@
  * Natural Earth 10m layers grouped by category with checkboxes.
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   IonList,
   IonItem,
@@ -18,6 +18,13 @@ import {
   IonSearchbar,
   IonChip,
   IonText,
+  IonSegment,
+  IonSegmentButton,
+  IonInput,
+  IonToggle,
+  IonRange,
+  IonCard,
+  IonCardContent,
 } from '@ionic/react';
 import {
   earthOutline,
@@ -27,9 +34,16 @@ import {
   mapOutline,
   leafOutline,
   layersOutline,
+  settingsOutline,
 } from 'ionicons/icons';
 
 import { spatialService, type LayerInfo } from '../../services/spatialService';
+import settingsService, { 
+  type AppSettings, 
+  type MapLayerLimits,
+  type UserLayerVisibility,
+  DEFAULT_SETTINGS 
+} from '../../services/settingsService';
 import './LayerSelector.css';
 
 // ============================================================================
@@ -43,6 +57,8 @@ export interface LayerSelectorProps {
   onLayerToggle: (layerName: string, enabled: boolean) => void;
   /** Callback to enable/disable multiple layers at once */
   onBulkToggle?: (layerNames: string[], enabled: boolean) => void;
+  /** Callback when settings change */
+  onSettingsChange?: (settings: AppSettings) => void;
   /** Whether the selector is in compact mode */
   compact?: boolean;
   /** Maximum height for the selector */
@@ -70,29 +86,73 @@ const LayerSelector: React.FC<LayerSelectorProps> = ({
   enabledLayers,
   onLayerToggle,
   onBulkToggle,
+  onSettingsChange,
   compact = false,
   maxHeight = '400px',
 }) => {
+  const [activeTab, setActiveTab] = useState<'layers' | 'settings'>('layers');
   const [layers, setLayers] = useState<LayerInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['boundaries', 'physical']));
+  
+  // Settings state
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
 
-  // Load layers from database
+  // Load layers and settings
   useEffect(() => {
-    async function loadLayers() {
+    async function loadData() {
       setLoading(true);
       try {
-        const availableLayers = await spatialService.getAvailableLayers();
+        const [availableLayers, appSettings] = await Promise.all([
+          spatialService.getAvailableLayers(),
+          settingsService.getSettings()
+        ]);
         setLayers(availableLayers);
+        setSettings(appSettings);
       } catch (error) {
-        console.error('Failed to load layers:', error);
+        console.error('Failed to load data:', error);
       } finally {
         setLoading(false);
       }
     }
-    loadLayers();
+    loadData();
   }, []);
+
+  // Settings handlers
+  const updateLayerLimit = useCallback(async (key: keyof MapLayerLimits, value: number) => {
+    const newSettings = {
+      ...settings,
+      mapLayerLimits: { ...settings.mapLayerLimits, [key]: value },
+    };
+    setSettings(newSettings);
+    await settingsService.setSettings(newSettings);
+    onSettingsChange?.(newSettings);
+  }, [settings, onSettingsChange]);
+
+  const updateUserLayerVisibility = useCallback(async (key: keyof UserLayerVisibility, value: boolean) => {
+    const newSettings = {
+      ...settings,
+      userLayerVisibility: { ...settings.userLayerVisibility, [key]: value },
+    };
+    setSettings(newSettings);
+    await settingsService.setSettings(newSettings);
+    onSettingsChange?.(newSettings);
+  }, [settings, onSettingsChange]);
+
+  const updateBooleanSetting = useCallback(async (key: keyof AppSettings, value: boolean) => {
+    const newSettings = { ...settings, [key]: value };
+    setSettings(newSettings);
+    await settingsService.setSettings(newSettings);
+    onSettingsChange?.(newSettings);
+  }, [settings, onSettingsChange]);
+
+  const updateNumberSetting = useCallback(async (key: keyof AppSettings, value: number) => {
+    const newSettings = { ...settings, [key]: value };
+    setSettings(newSettings);
+    await settingsService.setSettings(newSettings);
+    onSettingsChange?.(newSettings);
+  }, [settings, onSettingsChange]);
 
   // Group layers by category
   const layersByCategory = useMemo(() => {
@@ -169,99 +229,243 @@ const LayerSelector: React.FC<LayerSelectorProps> = ({
 
   return (
     <div className="layer-selector" style={{ maxHeight }}>
-      {/* Header with stats */}
-      <div className="layer-selector-header">
-        <IonSearchbar
-          value={searchText}
-          onIonInput={(e) => setSearchText(e.detail.value || '')}
-          placeholder="Search layers..."
-          debounce={200}
-          className="layer-search"
-        />
-        <div className="layer-stats">
-          <IonChip color={totalEnabled > 0 ? 'primary' : 'medium'} outline>
-            <IonIcon icon={layersOutline} />
-            <IonLabel>{totalEnabled} / {totalLayers} enabled</IonLabel>
-          </IonChip>
-        </div>
-      </div>
+      {/* Tabs */}
+      <IonSegment value={activeTab} onIonChange={e => setActiveTab(e.detail.value as 'layers' | 'settings')}>
+        <IonSegmentButton value="layers">
+          <IonLabel>Layers</IonLabel>
+          <IonIcon icon={layersOutline} />
+        </IonSegmentButton>
+        <IonSegmentButton value="settings">
+          <IonLabel>Settings</IonLabel>
+          <IonIcon icon={settingsOutline} />
+        </IonSegmentButton>
+      </IonSegment>
 
-      {/* Layer list by category */}
-      <IonList className="layer-list">
-        {Object.entries(layersByCategory).map(([category, catLayers]) => {
-          const config = CATEGORY_CONFIG[category] || CATEGORY_CONFIG.other;
-          const isExpanded = expandedCategories.has(category);
-          const enabledCount = enabledCountByCategory[category] || 0;
+      {activeTab === 'layers' ? (
+        <>
+          {/* Header with stats */}
+          <div className="layer-selector-header">
+            <IonSearchbar
+              value={searchText}
+              onIonInput={(e) => setSearchText(e.detail.value || '')}
+              placeholder="Search layers..."
+              debounce={200}
+              className="layer-search"
+            />
+            <div className="layer-stats">
+              <IonChip color={totalEnabled > 0 ? 'primary' : 'medium'} outline>
+                <IonIcon icon={layersOutline} />
+                <IonLabel>{totalEnabled} / {totalLayers} enabled</IonLabel>
+              </IonChip>
+            </div>
+          </div>
 
-          return (
-            <div key={category} className="layer-category">
-              {/* Category header */}
-              <IonItemDivider 
-                className="category-header"
-                onClick={() => toggleCategory(category)}
-                style={{ cursor: 'pointer', '--background': `${config.color}15` }}
-              >
-                <IonIcon 
-                  icon={config.icon} 
-                  slot="start" 
-                  style={{ color: config.color }}
-                />
-                <IonLabel>
-                  <h3>{config.label}</h3>
-                  <p>{catLayers.length} layers</p>
-                </IonLabel>
-                <IonBadge 
-                  slot="end" 
-                  color={enabledCount > 0 ? 'primary' : 'medium'}
-                >
-                  {enabledCount}
-                </IonBadge>
-                {!compact && (
-                  <IonCheckbox
-                    slot="end"
-                    checked={enabledCount === catLayers.length}
-                    indeterminate={enabledCount > 0 && enabledCount < catLayers.length}
-                    onIonChange={(e) => {
-                      e.stopPropagation();
-                      toggleCategoryLayers(category, e.detail.checked);
-                    }}
-                    style={{ marginLeft: '8px' }}
-                  />
-                )}
-              </IonItemDivider>
+          {/* Layer list by category */}
+          <IonList className="layer-list">
+            {Object.entries(layersByCategory).map(([category, catLayers]) => {
+              const config = CATEGORY_CONFIG[category] || CATEGORY_CONFIG.other;
+              const isExpanded = expandedCategories.has(category);
+              const enabledCount = enabledCountByCategory[category] || 0;
 
-              {/* Layer items */}
-              {isExpanded && catLayers.map((layer) => (
-                <IonItem 
-                  key={layer.name}
-                  className={`layer-item ${enabledLayers.has(layer.name) ? 'enabled' : ''}`}
-                  lines="none"
-                >
-                  <div 
-                    className="layer-color-indicator"
-                    style={{ backgroundColor: layer.styleColor }}
-                    slot="start"
-                  />
-                  <IonLabel>
-                    <h3>{layer.displayName}</h3>
+              return (
+                <div key={category} className="layer-category">
+                  {/* Category header */}
+                  <IonItemDivider 
+                    className="category-header"
+                    onClick={() => toggleCategory(category)}
+                    style={{ cursor: 'pointer', '--background': `${config.color}15` }}
+                  >
+                    <IonIcon 
+                      icon={config.icon} 
+                      slot="start" 
+                      style={{ color: config.color }}
+                    />
+                    <IonLabel>
+                      <h3>{config.label}</h3>
+                      <p>{catLayers.length} layers</p>
+                    </IonLabel>
+                    <IonBadge 
+                      slot="end" 
+                      color={enabledCount > 0 ? 'primary' : 'medium'}
+                    >
+                      {enabledCount}
+                    </IonBadge>
                     {!compact && (
-                      <p>
-                        {layer.featureCount.toLocaleString()} features
-                        {layer.geometryType && ` • ${layer.geometryType}`}
-                      </p>
+                      <IonCheckbox
+                        slot="end"
+                        checked={enabledCount === catLayers.length}
+                        indeterminate={enabledCount > 0 && enabledCount < catLayers.length}
+                        onIonChange={(e) => {
+                          e.stopPropagation();
+                          toggleCategoryLayers(category, e.detail.checked);
+                        }}
+                        style={{ marginLeft: '8px' }}
+                      />
                     )}
-                  </IonLabel>
-                  <IonCheckbox
-                    slot="end"
-                    checked={enabledLayers.has(layer.name)}
-                    onIonChange={(e) => onLayerToggle(layer.name, e.detail.checked)}
+                  </IonItemDivider>
+
+                  {/* Layer items */}
+                  {isExpanded && catLayers.map((layer) => (
+                    <IonItem 
+                      key={layer.name}
+                      className={`layer-item ${enabledLayers.has(layer.name) ? 'enabled' : ''}`}
+                      lines="none"
+                    >
+                      <div 
+                        className="layer-color-indicator"
+                        style={{ backgroundColor: layer.styleColor }}
+                        slot="start"
+                      />
+                      <IonLabel>
+                        <h3>{layer.displayName}</h3>
+                        {!compact && (
+                          <p>
+                            {layer.featureCount.toLocaleString()} features
+                            {layer.geometryType && ` • ${layer.geometryType}`}
+                          </p>
+                        )}
+                      </IonLabel>
+                      <IonCheckbox
+                        slot="end"
+                        checked={enabledLayers.has(layer.name)}
+                        onIonChange={(e) => onLayerToggle(layer.name, e.detail.checked)}
+                      />
+                    </IonItem>
+                  ))}
+                </div>
+              );
+            })}
+          </IonList>
+        </>
+      ) : (
+        <div className="layer-settings">
+          {/* User Layer Visibility */}
+          <IonCard>
+            <IonCardContent>
+              <IonText color="medium">
+                <h3>User Drawings</h3>
+              </IonText>
+              <IonList lines="none">
+                <IonItem>
+                  <IonLabel>Points</IonLabel>
+                  <IonToggle
+                    checked={settings.userLayerVisibility.points}
+                    onIonChange={(e) => updateUserLayerVisibility('points', e.detail.checked)}
                   />
                 </IonItem>
-              ))}
-            </div>
-          );
-        })}
-      </IonList>
+                <IonItem>
+                  <IonLabel>Lines</IonLabel>
+                  <IonToggle
+                    checked={settings.userLayerVisibility.lines}
+                    onIonChange={(e) => updateUserLayerVisibility('lines', e.detail.checked)}
+                  />
+                </IonItem>
+                <IonItem>
+                  <IonLabel>Polygons</IonLabel>
+                  <IonToggle
+                    checked={settings.userLayerVisibility.polygons}
+                    onIonChange={(e) => updateUserLayerVisibility('polygons', e.detail.checked)}
+                  />
+                </IonItem>
+              </IonList>
+            </IonCardContent>
+          </IonCard>
+
+          {/* Map Layer Limits */}
+          <IonCard>
+            <IonCardContent>
+              <IonText color="medium">
+                <h3>Feature Limits</h3>
+                <p style={{ fontSize: '0.8em' }}>Max features to load per layer type</p>
+              </IonText>
+              <IonList lines="none">
+                <IonItem>
+                  <IonLabel>
+                    <h3>Bathymetry</h3>
+                    <p>Heavy polygons</p>
+                  </IonLabel>
+                  <IonInput
+                    type="number"
+                    value={settings.mapLayerLimits.bathymetry}
+                    onIonChange={(e) => updateLayerLimit('bathymetry', parseInt(e.detail.value!, 10) || 0)}
+                    style={{ textAlign: 'right' }}
+                  />
+                </IonItem>
+                <IonItem>
+                  <IonLabel>
+                    <h3>Polygons</h3>
+                    <p>Countries, lakes</p>
+                  </IonLabel>
+                  <IonInput
+                    type="number"
+                    value={settings.mapLayerLimits.polygons}
+                    onIonChange={(e) => updateLayerLimit('polygons', parseInt(e.detail.value!, 10) || 0)}
+                    style={{ textAlign: 'right' }}
+                  />
+                </IonItem>
+                <IonItem>
+                  <IonLabel>
+                    <h3>Lines</h3>
+                    <p>Rivers, roads</p>
+                  </IonLabel>
+                  <IonInput
+                    type="number"
+                    value={settings.mapLayerLimits.lines}
+                    onIonChange={(e) => updateLayerLimit('lines', parseInt(e.detail.value!, 10) || 0)}
+                    style={{ textAlign: 'right' }}
+                  />
+                </IonItem>
+                <IonItem>
+                  <IonLabel>
+                    <h3>Points</h3>
+                    <p>Cities, places</p>
+                  </IonLabel>
+                  <IonInput
+                    type="number"
+                    value={settings.mapLayerLimits.points}
+                    onIonChange={(e) => updateLayerLimit('points', parseInt(e.detail.value!, 10) || 0)}
+                    style={{ textAlign: 'right' }}
+                  />
+                </IonItem>
+              </IonList>
+            </IonCardContent>
+          </IonCard>
+
+          {/* Performance */}
+          <IonCard>
+            <IonCardContent>
+              <IonText color="medium">
+                <h3>Performance</h3>
+              </IonText>
+              <IonList lines="none">
+                <IonItem>
+                  <IonLabel>
+                    <h3>Enable Caching</h3>
+                    <p>Cache layers in memory</p>
+                  </IonLabel>
+                  <IonToggle
+                    checked={settings.enableLayerCaching}
+                    onIonChange={(e) => updateBooleanSetting('enableLayerCaching', e.detail.checked)}
+                  />
+                </IonItem>
+                <IonItem>
+                  <IonLabel>
+                    <h3>Max Cached Layers</h3>
+                  </IonLabel>
+                  <IonRange
+                    min={5}
+                    max={20}
+                    step={1}
+                    pin
+                    value={settings.maxCachedLayers}
+                    onIonChange={(e) => updateNumberSetting('maxCachedLayers', e.detail.value as number)}
+                  />
+                </IonItem>
+              </IonList>
+            </IonCardContent>
+          </IonCard>
+        </div>
+      )}
     </div>
   );
 };

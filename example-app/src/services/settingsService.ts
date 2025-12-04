@@ -21,9 +21,17 @@ export interface MapLayerLimits {
   points: number;
 }
 
+export interface UserLayerVisibility {
+  points: boolean;
+  lines: boolean;
+  polygons: boolean;
+}
+
 export interface AppSettings {
   // Map layer limits
   mapLayerLimits: MapLayerLimits;
+  // User layer visibility
+  userLayerVisibility: UserLayerVisibility;
   // Map defaults
   defaultMapZoom: number;
   defaultMapCenter: [number, number];
@@ -38,17 +46,22 @@ export interface AppSettings {
 // Default settings
 export const DEFAULT_SETTINGS: AppSettings = {
   mapLayerLimits: {
-    bathymetry: 500,
-    polygons: 2000,
-    lines: 3000,
-    points: 5000,
+    bathymetry: 5_000_000,
+    polygons: 5_000_000,
+    lines: 5_000_000,
+    points: 5_000_000,
   },
-  defaultMapZoom: 2,
-  defaultMapCenter: [0, 20],
+  userLayerVisibility: {
+    points: true,
+    lines: true,
+    polygons: true,
+  },
+  defaultMapZoom: 4,
+  defaultMapCenter: [123.11211390676199, 11.528461047066104],
   darkMode: false,
   showDebugInfo: false,
   enableLayerCaching: true,
-  maxCachedLayers: 10,
+  maxCachedLayers: 5_000_000,
 };
 
 // In-memory cache of settings
@@ -288,6 +301,22 @@ export async function getLayerLimit(type: keyof MapLayerLimits): Promise<number>
   return limits[type];
 }
 
+/**
+ * Get user layer visibility
+ */
+export async function getUserLayerVisibility(): Promise<UserLayerVisibility> {
+  return getSetting<UserLayerVisibility>('userLayerVisibility');
+}
+
+/**
+ * Update user layer visibility
+ */
+export async function setUserLayerVisibility(visibility: Partial<UserLayerVisibility>): Promise<void> {
+  const current = await getUserLayerVisibility();
+  const updated = { ...current, ...visibility };
+  await setSetting('userLayerVisibility', updated);
+}
+
 // ============================================================================
 // Utility Functions
 // ============================================================================
@@ -360,6 +389,8 @@ export const settingsService = {
   getMapLayerLimits,
   setMapLayerLimits,
   getLayerLimit,
+  getUserLayerVisibility,
+  setUserLayerVisibility,
   DEFAULT_SETTINGS,
 };
 

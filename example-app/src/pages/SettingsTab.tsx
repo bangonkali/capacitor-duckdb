@@ -23,7 +23,6 @@ import {
   IonCardHeader,
   IonCardTitle,
   IonCardContent,
-  IonNote,
   IonRange,
   IonButtons,
   IonSpinner,
@@ -35,7 +34,6 @@ import {
   saveOutline,
   refreshOutline,
   layersOutline,
-  speedometerOutline,
   colorPaletteOutline,
   informationCircleOutline,
   warningOutline,
@@ -44,7 +42,6 @@ import {
 
 import settingsService, { 
   type AppSettings, 
-  type MapLayerLimits,
   DEFAULT_SETTINGS 
 } from '../services/settingsService';
 
@@ -75,14 +72,6 @@ const SettingsTab: React.FC = () => {
     loadSettings();
   }, [presentToast]);
 
-  const updateLayerLimit = useCallback((key: keyof MapLayerLimits, value: number) => {
-    setSettings(prev => ({
-      ...prev,
-      mapLayerLimits: { ...prev.mapLayerLimits, [key]: value },
-    }));
-    setHasChanges(true);
-  }, []);
-
   const updateBooleanSetting = useCallback((key: keyof AppSettings, value: boolean) => {
     setSettings(prev => ({ ...prev, [key]: value }));
     setHasChanges(true);
@@ -90,6 +79,15 @@ const SettingsTab: React.FC = () => {
 
   const updateNumberSetting = useCallback((key: keyof AppSettings, value: number) => {
     setSettings(prev => ({ ...prev, [key]: value }));
+    setHasChanges(true);
+  }, []);
+
+  const updateMapCenter = useCallback((index: 0 | 1, value: number) => {
+    setSettings(prev => {
+      const newCenter = [...prev.defaultMapCenter] as [number, number];
+      newCenter[index] = value;
+      return { ...prev, defaultMapCenter: newCenter };
+    });
     setHasChanges(true);
   }, []);
 
@@ -163,133 +161,17 @@ const SettingsTab: React.FC = () => {
           </div>
         )}
 
-        {/* Map Layer Limits */}
+        {/* Map Settings Moved */}
         <IonCard>
           <IonCardHeader>
-            <IonCardTitle><IonIcon icon={layersOutline} /> Map Layer Limits</IonCardTitle>
+            <IonCardTitle><IonIcon icon={layersOutline} /> Map Settings</IonCardTitle>
           </IonCardHeader>
           <IonCardContent>
-            <IonNote>Maximum features to load per layer type. Lower values improve performance.</IonNote>
+            <p>Map layer limits, visibility, and performance settings have been moved to the Map view.</p>
+            <p style={{ marginTop: '10px' }}>
+              Go to <strong>Spatial Demo</strong> and click the <strong>Layers</strong> button to configure map settings.
+            </p>
           </IonCardContent>
-          
-          <IonList>
-            <IonItem>
-              <IonLabel>
-                <h3>Bathymetry / Ocean</h3>
-                <p>Heavy polygon layers</p>
-              </IonLabel>
-              <IonInput
-                type="number"
-                value={settings.mapLayerLimits.bathymetry}
-                min={100}
-                max={2000}
-                onIonChange={(e) => {
-                  const val = parseInt(String(e.detail.value), 10);
-                  if (!Number.isNaN(val)) {
-                    updateLayerLimit('bathymetry', val);
-                  }
-                }}
-                className="limit-input"
-              />
-            </IonItem>
-            
-            <IonItem>
-              <IonLabel>
-                <h3>Polygons</h3>
-                <p>Countries, lakes, parks</p>
-              </IonLabel>
-              <IonInput
-                type="number"
-                value={settings.mapLayerLimits.polygons}
-                min={500}
-                max={10000}
-                onIonChange={(e) => {
-                  const val = parseInt(String(e.detail.value), 10);
-                  if (!Number.isNaN(val)) {
-                    updateLayerLimit('polygons', val);
-                  }
-                }}
-                className="limit-input"
-              />
-            </IonItem>
-            
-            <IonItem>
-              <IonLabel>
-                <h3>Lines</h3>
-                <p>Rivers, roads, railroads</p>
-              </IonLabel>
-              <IonInput
-                type="number"
-                value={settings.mapLayerLimits.lines}
-                min={500}
-                max={15000}
-                onIonChange={(e) => {
-                  const val = parseInt(String(e.detail.value), 10);
-                  if (!Number.isNaN(val)) {
-                    updateLayerLimit('lines', val);
-                  }
-                }}
-                className="limit-input"
-              />
-            </IonItem>
-            
-            <IonItem>
-              <IonLabel>
-                <h3>Points</h3>
-                <p>Cities, airports, ports</p>
-              </IonLabel>
-              <IonInput
-                type="number"
-                value={settings.mapLayerLimits.points}
-                min={1000}
-                max={20000}
-                onIonChange={(e) => {
-                  const val = parseInt(String(e.detail.value), 10);
-                  if (!Number.isNaN(val)) {
-                    updateLayerLimit('points', val);
-                  }
-                }}
-                className="limit-input"
-              />
-            </IonItem>
-          </IonList>
-        </IonCard>
-
-        {/* Performance */}
-        <IonCard>
-          <IonCardHeader>
-            <IonCardTitle><IonIcon icon={speedometerOutline} /> Performance</IonCardTitle>
-          </IonCardHeader>
-          
-          <IonList>
-            <IonItem>
-              <IonLabel>
-                <h3>Enable Layer Caching</h3>
-                <p>Cache layers to reduce queries</p>
-              </IonLabel>
-              <IonToggle
-                checked={settings.enableLayerCaching}
-                onIonChange={(e) => updateBooleanSetting('enableLayerCaching', e.detail.checked)}
-              />
-            </IonItem>
-            
-            <IonItem>
-              <IonLabel>
-                <h3>Max Cached Layers</h3>
-                <p>Layers to keep in memory</p>
-              </IonLabel>
-              <IonRange
-                min={5}
-                max={20}
-                step={1}
-                pin
-                pinFormatter={(value) => `${value}`}
-                value={settings.maxCachedLayers}
-                onIonChange={(e) => updateNumberSetting('maxCachedLayers', e.detail.value as number)}
-                style={{ maxWidth: '150px' }}
-              />
-            </IonItem>
-          </IonList>
         </IonCard>
 
         {/* Preferences */}
@@ -325,6 +207,27 @@ const SettingsTab: React.FC = () => {
                 onIonChange={(e) => updateNumberSetting('defaultMapZoom', e.detail.value as number)}
                 style={{ maxWidth: '150px' }}
               />
+            </IonItem>
+
+            <IonItem>
+              <IonLabel>
+                <h3>Default Map Center</h3>
+                <p>Longitude, Latitude</p>
+              </IonLabel>
+              <div style={{ display: 'flex', gap: '10px', maxWidth: '200px' }}>
+                <IonInput
+                  type="number"
+                  placeholder="Lon"
+                  value={settings.defaultMapCenter[0]}
+                  onIonChange={(e) => updateMapCenter(0, parseFloat(e.detail.value!) || 0)}
+                />
+                <IonInput
+                  type="number"
+                  placeholder="Lat"
+                  value={settings.defaultMapCenter[1]}
+                  onIonChange={(e) => updateMapCenter(1, parseFloat(e.detail.value!) || 0)}
+                />
+              </div>
             </IonItem>
           </IonList>
         </IonCard>

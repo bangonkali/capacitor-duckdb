@@ -329,7 +329,54 @@ export async function saveUserDrawing(
 }
 
 /**
- * Get all user drawings
+ * Get all user drawings as GeoJSON FeatureCollection
+ */
+export async function getUserDrawingsGeoJSON(): Promise<FeatureCollection> {
+  const result = await duckdb.query<{
+    id: number;
+    name: string;
+    geometry_type: string;
+    geometry_geojson: string;
+    created_at: string;
+    properties: string | null;
+  }>(
+    SPATIAL_DB,
+    `SELECT id, name, geometry_type, ST_AsGeoJSON(geometry) as geometry_geojson, 
+            created_at::VARCHAR as created_at, properties::VARCHAR as properties
+     FROM user_drawings
+     ORDER BY created_at DESC;`
+  );
+  
+  const features = result.values.map(row => {
+    try {
+      const geometry = JSON.parse(row.geometry_geojson) as Geometry;
+      const properties = row.properties ? JSON.parse(row.properties) : {};
+      return {
+        type: 'Feature' as const,
+        id: row.id,
+        geometry,
+        properties: {
+          ...properties,
+          id: row.id,
+          name: row.name,
+          geometry_type: row.geometry_type,
+          created_at: row.created_at,
+        }
+      };
+    } catch (e) {
+      console.warn('Failed to parse drawing:', row.id, e);
+      return null;
+    }
+  }).filter((f): f is NonNullable<typeof f> => f !== null);
+
+  return {
+    type: 'FeatureCollection',
+    features
+  };
+}
+
+/**
+ * Get all user drawings (Legacy)
  */
 export async function getUserDrawings(): Promise<UserDrawing[]> {
   const result = await duckdb.query<{
@@ -365,6 +412,17 @@ export async function deleteUserDrawing(id: number): Promise<void> {
  */
 export async function updateUserDrawingName(id: number, name: string): Promise<void> {
   await duckdb.run(SPATIAL_DB, `UPDATE user_drawings SET name = $1 WHERE id = $2;`, [name, id]);
+}
+
+/**
+ * Update a user drawing's geometry
+ */
+export async function updateUserDrawingGeometry(id: number, wkt: string): Promise<void> {
+  await duckdb.run(
+    SPATIAL_DB, 
+    `UPDATE user_drawings SET geometry = ST_GeomFromText($1::VARCHAR) WHERE id = $2;`, 
+    [wkt, id]
+  );
 }
 
 // ============================================================================
@@ -537,8 +595,26 @@ export async function getDynamicLayerGeoJSON(
   let whereClause = '';
   if (options?.bbox) {
     const [minLon, minLat, maxLon, maxLat] = options.bbox;
-    // Use ST_Intersects with ST_MakeEnvelope for proper spatial filtering
-    whereClause = `WHERE ST_Intersects(geometry, ST_MakeEnvelope(${minLon}, ${minLat}, ${maxLon}, ${maxLat}))`;
+    
+    // Validate bbox values to prevent "NaN" SQL injection errors
+    if (
+      Number.isFinite(minLon) && 
+      Number.isFinite(minLat) && 
+      Number.isFinite(maxLon) && 
+      Number.isFinite(maxLat)
+    ) {
+      // Use ST_Intersects with ST_MakeEnvelope for proper spatial filtering
+      whereClause = `WHERE ST_Intersects(geometry, ST_MakeEnvelope(${minLon}, ${minLat}, ${maxLon}, ${maxLat}))`;
+    } else {
+      console.warn(`[SpatialService] Invalid bbox provided for ${layerName}:`, options.bbox);
+      // Fallback: don't filter by bbox if invalid, or return empty?
+      // For safety, let's just log and proceed without spatial filter (will rely on LIMIT)
+      // or we could return empty to avoid fetching too much data.
+      // Given the error was blocking, proceeding without filter but with LIMIT is safer than crashing,
+      // but might be slow. Let's return empty to be safe and avoid massive queries.
+      console.warn('[SpatialService] Aborting query due to invalid bbox');
+      return { type: 'FeatureCollection', features: [] };
+    }
   }
 
   // Get all columns except geometry, then add geometry as GeoJSON
@@ -744,8 +820,10 @@ export const spatialService = {
   // User drawings
   saveDrawing: saveUserDrawing,
   getDrawings: getUserDrawings,
+  getDrawingsGeoJSON: getUserDrawingsGeoJSON,
   deleteDrawing: deleteUserDrawing,
   updateDrawingName: updateUserDrawingName,
+  updateUserDrawingGeometry: updateUserDrawingGeometry,
 };
 
 export default spatialService;

@@ -54,7 +54,13 @@ echo 'export VCPKG_ROOT=$HOME/vcpkg' >> ~/.zshrc
 1. **Xcode**: Install via Mac App Store.
 2. **CocoaPods**: `sudo gem install cocoapods`
 
+### Windows-specific
+1. **PowerShell**: Standard on Windows 10/11.
+2. **Visual Studio**: Required for vcpkg to compile dependencies (C++ Desktop Development workload).
+
 ## Building for Android
+
+### macOS / Linux
 
 ```bash
 # Build native libraries
@@ -65,6 +71,19 @@ echo 'export VCPKG_ROOT=$HOME/vcpkg' >> ~/.zshrc
 
 # Specify a DuckDB version/branch
 ./scripts/build-android.sh --version v1.3.0
+```
+
+### Windows (PowerShell)
+
+```powershell
+# Build native libraries
+.\scripts\build-android.ps1
+
+# Build native libraries AND the example app
+.\scripts\build-example-android.ps1
+
+# Specify a DuckDB version/branch
+.\scripts\build-android.ps1 -DuckDBVersion v1.3.0
 ```
 
 ### Environment Variables
