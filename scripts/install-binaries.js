@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
-const { execSync } = require('child_process');
+const AdmZip = require('adm-zip');
 
 const PACKAGE_JSON = require('../package.json');
 const VERSION = PACKAGE_JSON.version;
@@ -43,6 +43,21 @@ async function downloadFile(url, destPath) {
             reject(err);
         });
     });
+}
+
+function verifyBinaries() {
+    const androidAbis = ['arm64-v8a', 'x86_64'];
+    for (const abi of androidAbis) {
+        const soPath = path.join(PLATFORMS.android.dest, abi, 'libduckdb.so');
+        if (!fs.existsSync(soPath)) {
+            throw new Error(`Missing Android binary: ${soPath}`);
+        }
+    }
+
+    const iosLibPath = path.join(PLATFORMS.ios.dest, 'libduckdb.a');
+    if (!fs.existsSync(iosLibPath)) {
+        throw new Error(`Missing iOS binary: ${iosLibPath}`);
+    }
 }
 
 async function main() {
@@ -98,6 +113,9 @@ async function main() {
 
         console.log(`Downloading iOS binary from ${iosLibUrl}...`);
         await downloadFile(iosLibUrl, iosLibPath);
+
+        console.log('Verifying downloaded binaries...');
+        verifyBinaries();
 
         console.log('Download complete.');
     } catch (error) {
