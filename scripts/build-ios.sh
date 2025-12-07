@@ -419,6 +419,103 @@ build_for_platform() {
         find "$build_path" -name "*.a" -type f 2>/dev/null | head -10
         exit 1
     fi
+
+    # Recursive Iterative merge: Merge extensions, then resolve undefined symbols with third-party libs
+    log_info "Performing recursive iterative merge..."
+    
+    # 1. Start with core library and all extensions
+    local core_lib="$build_path/src/libduckdb.a"
+    local extension_libs=$(find "$build_path/extension" -name "lib*_extension.a")
+    local libs_to_merge=("$core_lib")
+    
+    log_info "  Adding extensions:"
+    while IFS= read -r lib; do
+        log_info "    + $(basename "$lib")"
+        libs_to_merge+=("$lib")
+    done <<< "$extension_libs"
+    
+    # 2. Loop until no new libraries are added
+    local iteration=1
+    while true; do
+        log_info "  Iteration $iteration: Analyzing symbols..."
+        
+        # Extract all symbols from current set
+        nm -gP "${libs_to_merge[@]}" > "$build_path/all_symbols.txt" 2>/dev/null
+        
+        # Get defined symbols
+        awk '$2 ~ /[TDBR]/ {print $1}' "$build_path/all_symbols.txt" | sort -u > "$build_path/defined.txt"
+        
+        # Get undefined symbols
+        awk '$2 == "U" {print $1}' "$build_path/all_symbols.txt" | sort -u > "$build_path/undefined.txt"
+        
+        # Truly needed = Undefined - Defined
+        comm -23 "$build_path/undefined.txt" "$build_path/defined.txt" > "$build_path/needed.txt"
+        
+        local needed_count=$(wc -l < "$build_path/needed.txt")
+        log_info "    Found $needed_count undefined symbols."
+        
+        if [ $needed_count -eq 0 ]; then
+            log_info "    No undefined symbols left. Stopping."
+            break
+        fi
+        
+        # Find candidate third-party libs (not yet merged)
+        # We construct the find command to exclude already merged libs
+        # But for simplicity, we just filter them in the loop
+        local third_party_libs=$(find "$build_path" "$vcpkg_installed/lib" -name "*.a" ! -name "libduckdb.a" ! -name "libduckdb_static.a" ! -name "libduckdb_merged.a" ! -name "lib*_extension.a")
+        local added_in_this_round=0
+        
+        if [ -n "$third_party_libs" ]; then
+            while IFS= read -r lib; do
+                local lib_name=$(basename "$lib")
+                
+                # Check if already merged
+                local already_merged=false
+                for merged in "${libs_to_merge[@]}"; do
+                    if [ "$merged" == "$lib" ]; then
+                        already_merged=true
+                        break
+                    fi
+                done
+                
+                if [ "$already_merged" = true ]; then
+                    continue
+                fi
+                
+                # Get defined symbols in this lib
+                nm -gP "$lib" 2>/dev/null | awk '$2 ~ /[TDBR]/ {print $1}' | sort -u > "$build_path/lib_defined.txt"
+                
+                # Check intersection with needed symbols
+                if comm -12 "$build_path/needed.txt" "$build_path/lib_defined.txt" | grep -q .; then
+                    log_info "    Adding $lib_name (resolves symbols)"
+                    libs_to_merge+=("$lib")
+                    added_in_this_round=$((added_in_this_round + 1))
+                fi
+            done <<< "$third_party_libs"
+        fi
+        
+        log_info "    Added $added_in_this_round libraries in iteration $iteration."
+        
+        if [ $added_in_this_round -eq 0 ]; then
+            log_info "    No new libraries added. Stopping."
+            break
+        fi
+        
+        iteration=$((iteration + 1))
+        if [ $iteration -gt 10 ]; then
+            log_warn "    Reached maximum iterations (10). Stopping to prevent infinite loop."
+            break
+        fi
+    done
+    
+    # 3. Perform the merge
+    log_info "Merging $((${#libs_to_merge[@]})) libraries..."
+    libtool -static -o "$build_path/src/libduckdb_merged.a" "${libs_to_merge[@]}"
+    mv "$build_path/src/libduckdb_merged.a" "$build_path/src/libduckdb.a"
+    log_info "Merge complete."
+    
+    # Cleanup
+    rm -f "$build_path/all_symbols.txt" "$build_path/defined.txt" "$build_path/undefined.txt" "$build_path/needed.txt" "$build_path/lib_defined.txt"
 }
 
 # Create fat library for multiple architectures
@@ -502,6 +599,11 @@ copy_headers_to_plugin() {
     cp "$duckpgq_dir/duckdb/src/include/duckdb.h" "$plugin_include_dir/"
     cp "$duckpgq_dir/duckdb/src/include/duckdb.hpp" "$plugin_include_dir/"
     cp -R "$duckpgq_dir/duckdb/src/include/duckdb" "$plugin_include_dir/"
+    
+    # Copy spatial extension header
+    local spatial_dir="${PROJECT_ROOT}/build/spatial/duckdb-spatial"
+    mkdir -p "$plugin_include_dir/spatial"
+    cp "$spatial_dir/src/spatial/spatial_extension.hpp" "$plugin_include_dir/spatial/"
     
     log_info "Headers copied to $plugin_include_dir"
 }

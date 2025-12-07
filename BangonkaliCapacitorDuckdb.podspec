@@ -15,7 +15,8 @@ Pod::Spec.new do |s|
   # duckdb_ios.cpp uses C++ API internally but exposes C interface
   s.source_files = [
     'ios/Sources/CapacitorDuckDbPlugin/*.swift',
-    'ios/Sources/CapacitorDuckDbPlugin/include/duckdb.h',
+    'ios/Sources/CapacitorDuckDbPlugin/include/**/*.h',
+    'ios/Sources/CapacitorDuckDbPlugin/include/**/*.hpp',
     'ios/Sources/CapacitorDuckDbPlugin/duckdb_ios.hpp',
     'ios/Sources/CapacitorDuckDbPlugin/duckdb_ios.cpp'
   ]
