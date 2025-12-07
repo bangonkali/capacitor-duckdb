@@ -8,6 +8,7 @@
   "unpkg": "dist/plugin.js",
   "files": [
     "android/src/main/",
+    "android/src/main/cpp/include/duckdb.h",
     "android/build.gradle",
     "dist/",
     "ios/Sources",
