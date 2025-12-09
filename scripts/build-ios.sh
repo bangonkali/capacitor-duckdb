@@ -573,6 +573,8 @@ create_xcframework() {
 copy_headers() {
     local duckpgq_dir="${PROJECT_ROOT}/build/duckpgq/duckpgq-extension"
     local xcframework_path="${OUTPUT_DIR}/DuckDB.xcframework"
+    local src_include_dir="${duckpgq_dir}/duckdb/src/include"
+    local modulemap_src="${PROJECT_ROOT}/ios/Sources/CapacitorDuckDbPlugin/include/module.modulemap"
     
     log_info "Copying DuckDB headers..."
     
@@ -581,9 +583,14 @@ copy_headers() {
         if [ -d "$platform_dir" ]; then
             local headers_dir="$platform_dir/Headers"
             mkdir -p "$headers_dir"
-            cp "$duckpgq_dir/duckdb/src/include/duckdb.h" "$headers_dir/"
-            cp "$duckpgq_dir/duckdb/src/include/duckdb.hpp" "$headers_dir/"
-            log_info "Headers copied to $headers_dir"
+            # Copy full header tree
+            cp -R "$src_include_dir"/* "$headers_dir/"
+            # Provide module map for Swift/Clang modules
+            if [ -f "$modulemap_src" ]; then
+                mkdir -p "$platform_dir/Modules"
+                cp "$modulemap_src" "$platform_dir/Modules/module.modulemap"
+            fi
+            log_info "Headers copied to $headers_dir (with module map)"
         fi
     done
 }
