@@ -425,15 +425,23 @@ build_for_platform() {
     # Recursive Iterative merge: Merge extensions, then resolve undefined symbols with third-party libs
     log_info "Performing recursive iterative merge..."
     
+    # Helper to get absolute path
+    get_abs_path() {
+        echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+    }
+
     # 1. Start with core library and all extensions
-    local core_lib="$build_path/src/libduckdb.a"
+    local core_lib=$(get_abs_path "$build_path/src/libduckdb.a")
     local extension_libs=$(find "$build_path/extension" -name "lib*_extension.a")
     local libs_to_merge=("$core_lib")
     
     log_info "  Adding extensions:"
     while IFS= read -r lib; do
-        log_info "    + $(basename "$lib")"
-        libs_to_merge+=("$lib")
+        if [ -n "$lib" ]; then
+            local abs_lib=$(get_abs_path "$lib")
+            log_info "    + $(basename "$abs_lib")"
+            libs_to_merge+=("$abs_lib")
+        fi
     done <<< "$extension_libs"
     
     # 2. Loop until no new libraries are added
@@ -470,11 +478,12 @@ build_for_platform() {
         if [ -n "$third_party_libs" ]; then
             while IFS= read -r lib; do
                 local lib_name=$(basename "$lib")
+                local abs_lib=$(get_abs_path "$lib")
                 
                 # Check if already merged
                 local already_merged=false
                 for merged in "${libs_to_merge[@]}"; do
-                    if [ "$merged" == "$lib" ]; then
+                    if [ "$merged" == "$abs_lib" ]; then
                         already_merged=true
                         break
                     fi
@@ -490,8 +499,10 @@ build_for_platform() {
                 # Check intersection with needed symbols
                 if comm -12 "$build_path/needed.txt" "$build_path/lib_defined.txt" | grep -q .; then
                     log_info "    Adding $lib_name (resolves symbols)"
-                    libs_to_merge+=("$lib")
+                    libs_to_merge+=("$abs_lib")
                     added_in_this_round=$((added_in_this_round + 1))
+                    # BREAK to re-evaluate needed symbols (avoid double-adding)
+                    break 
                 fi
             done <<< "$third_party_libs"
         fi
@@ -504,8 +515,8 @@ build_for_platform() {
         fi
         
         iteration=$((iteration + 1))
-        if [ $iteration -gt 10 ]; then
-            log_warn "    Reached maximum iterations (10). Stopping to prevent infinite loop."
+        if [ $iteration -gt 100 ]; then
+            log_warn "    Reached maximum iterations (100). Stopping to prevent infinite loop."
             break
         fi
     done
