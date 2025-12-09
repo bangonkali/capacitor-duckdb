@@ -34,6 +34,7 @@
   "scripts": {
     "postinstall": "node scripts/install-binaries.js",
     "verify": "npm run verify:ios && npm run verify:android && npm run verify:web",
+    "check:release-assets": "node scripts/check-release-assets.js",
     "verify:ios": "xcodebuild -scheme BangonkaliCapacitorDuckdb -destination generic/platform=iOS",
     "verify:android": "cd android && ./gradlew clean build test && cd ..",
     "verify:web": "npm run build",
