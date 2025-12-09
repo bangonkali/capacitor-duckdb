@@ -15,24 +15,26 @@ Pod::Spec.new do |s|
   # duckdb_ios.cpp uses C++ API internally but exposes C interface
   s.source_files = [
     'ios/Sources/CapacitorDuckDbPlugin/*.swift',
-    'ios/Sources/CapacitorDuckDbPlugin/include/**/*.h',
-    'ios/Sources/CapacitorDuckDbPlugin/include/**/*.hpp',
     'ios/Sources/CapacitorDuckDbPlugin/duckdb_ios.hpp',
-    'ios/Sources/CapacitorDuckDbPlugin/duckdb_ios.cpp'
+    'ios/Sources/CapacitorDuckDbPlugin/duckdb_ios.cpp',
+    'ios/Sources/CapacitorDuckDbPlugin/include/duckdb.h'
   ]
   
   # DuckDB XCFramework (static library)
   s.vendored_frameworks = 'ios/Frameworks/DuckDB.xcframework'
   
   # Only expose our wrapper header and duckdb.h as public
-  # The C++ headers are private implementation details
+  # The C++ headers are private implementation details (kept via preserve_paths)
   s.public_header_files = [
     'ios/Sources/CapacitorDuckDbPlugin/include/duckdb.h',
     'ios/Sources/CapacitorDuckDbPlugin/duckdb_ios.hpp'
   ]
   
   # Preserve DuckDB C++ headers for C++ compilation
-  s.preserve_paths = 'ios/Sources/CapacitorDuckDbPlugin/include/**/*'
+  s.preserve_paths = [
+    'ios/Sources/CapacitorDuckDbPlugin/include/**/*',
+    'ios/Sources/CapacitorDuckDbPlugin/include/module.modulemap'
+  ]
   
   s.libraries = 'c++', 'z', 'sqlite3'
   s.frameworks = 'Foundation', 'Security'
