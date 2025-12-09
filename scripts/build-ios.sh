@@ -147,6 +147,7 @@ get_vss_source() {
 # Clone or update duckpgq-extension source
 get_duckpgq_source() {
     local duckpgq_dir="${PROJECT_ROOT}/build/duckpgq/duckpgq-extension"
+    local duckpgq_ref="a12ae70"  # pinned to known-good commit on v1.4-andium with valid submodules
     
     log_step "Getting duckpgq-extension source..."
     
@@ -156,12 +157,13 @@ get_duckpgq_source() {
         log_info "Using existing duckpgq-extension source..."
         cd "$duckpgq_dir"
         git reset --hard
-        git fetch origin
-        git checkout v1.4-andium
-        git pull origin v1.4-andium
+        git fetch origin v1.4-andium --depth 1 || true
+        git checkout "$duckpgq_ref"
     else
         log_info "Cloning duckpgq-extension repository..."
-        git clone --recurse-submodules -b v1.4-andium https://github.com/cwida/duckpgq-extension "$duckpgq_dir"
+        git clone --recurse-submodules -b v1.4-andium --depth 1 https://github.com/cwida/duckpgq-extension "$duckpgq_dir"
+        cd "$duckpgq_dir"
+        git checkout "$duckpgq_ref"
     fi
     
     # Initialize duckpgq's duckdb submodule (the fork)
