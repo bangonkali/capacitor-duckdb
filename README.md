@@ -6,8 +6,8 @@ A native DuckDB plugin for Capacitor-based Android and iOS applications. (see [T
 
 See Youtube reference of example-app demo below:
 
-<a href="http://www.youtube.com/watch?feature=player_embedded&v=XxHog1q0LbE" target="_blank">
- <img src="http://img.youtube.com/vi/XxHog1q0LbE/mqdefault.jpg" alt="Watch the video" width="240" />
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=zVEXInDChdU" target="_blank">
+ <img src="https://static.regalado.com.ph/capacitor-duckdb/demo.gif" alt="Watch the video" width="420" />
 </a>
 
 ## Features
@@ -642,7 +642,9 @@ Options for listing tables
 
 Construct a type with a set of properties K of type T
 
-<code>{ [P in K]: T; }</code>
+<code>{
+ [P in K]: T;
+ }</code>
 
 </docgen-api>
 
