@@ -7,7 +7,7 @@ A native DuckDB plugin for Capacitor-based Android and iOS applications. (see [T
 See Youtube reference of example-app demo below:
 
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=zVEXInDChdU" target="_blank">
- <img src="https://static.regalado.com.ph/capacitor-duckdb/demo.gif" alt="Watch the video" width="420" />
+ <img src="http://img.youtube.com/vi/zVEXInDChdU/mqdefault.jpg" alt="Watch the video" width="420" />
 </a>
 
 ## Features
